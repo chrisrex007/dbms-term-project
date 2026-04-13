@@ -1,0 +1,11 @@
+# URLs for Siege to hit
+http://localhost:8983/solr/searchcore/select?q=sample
+http://localhost:8983/solr/searchcore/select?q=document
+http://localhost:8983/solr/searchcore/select?q=test
+http://localhost:8983/solr/searchcore/select?q=example
+http://localhost:8983/solr/searchcore/select?q=author
+http://localhost:8983/solr/searchcore/select?q=category
+http://localhost:8983/solr/searchcore/select?q=tag
+http://localhost:8983/solr/searchcore/select?q=content
+http://localhost:8983/solr/searchcore/select?q=purpose
+http://localhost:8983/solr/searchcore/select?q=functionality

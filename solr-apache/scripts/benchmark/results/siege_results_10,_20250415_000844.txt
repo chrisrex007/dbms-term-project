@@ -1,0 +1,16 @@
+{	"transactions":			        3247,
+	"availability":			      100.00,
+	"elapsed_time":			       59.99,
+	"data_transferred":		     1982.67,
+	"response_time":		        0.18,
+	"transaction_rate":		       54.13,
+	"throughput":			       33.05,
+	"concurrency":			        9.98,
+	"successful_transactions":	        3247,
+	"failed_transactions":		           0,
+	"longest_transaction":		        0.25,
+	"shortest_transaction":		        0.10
+}
+LOG FILE: /var/log/log/siege.log
+You can disable this log file notification by editing
+/home/boss/.siege/siege.conf and changing 'show-logfile' to false.
