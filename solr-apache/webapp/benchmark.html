@@ -1,858 +1,838 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Apache Solr benchmark dashboard — QPS, latency, and availability analysis across standalone and SolrCloud configurations.">
-    <title>SolrSearch — Benchmark Dashboard</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Apache Solr benchmark dashboard — QPS, latency, and availability analysis across standalone and SolrCloud configurations."
+    />
+    <title>Benchmark Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css" />
     <style>
-        /* Benchmark-specific styles */
-        .dashboard-header {
-            text-align: center;
-            padding: 100px 24px 40px;
-        }
-        .dashboard-header h1 {
-            font-size: 2.5rem;
-            font-weight: 800;
-            letter-spacing: -0.03em;
-            color: var(--color-text-bright);
-            margin-bottom: 8px;
-        }
-        .dashboard-header p {
-            color: var(--color-text-secondary);
-            font-size: 1.05rem;
-        }
-        .dashboard {
-            max-width: 1280px;
-            margin: 0 auto;
-            padding: 0 24px 80px;
-        }
-        .section-title {
-            font-size: 1.4rem;
-            font-weight: 700;
-            color: var(--color-text-bright);
-            margin: 48px 0 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .section-title::before {
-            content: '';
-            width: 4px;
-            height: 24px;
-            background: linear-gradient(180deg, var(--color-primary), var(--color-accent));
-            border-radius: 2px;
+      /* Benchmark-specific styles */
+      .dashboard-header {
+        text-align: center;
+        padding: 100px 24px 40px;
+      }
+      .dashboard-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        color: var(--color-text-bright);
+        margin-bottom: 8px;
+      }
+      .dashboard-header p {
+        color: var(--color-text-secondary);
+        font-size: 1.05rem;
+      }
+      .dashboard {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 0 24px 80px;
+      }
+      .section-title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: var(--color-text-bright);
+        margin: 48px 0 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .section-title::before {
+        content: "";
+        width: 4px;
+        height: 24px;
+        background: linear-gradient(
+          180deg,
+          var(--color-primary),
+          var(--color-accent)
+        );
+        border-radius: 2px;
+      }
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 32px;
+      }
+      .stat-card {
+        background: var(--color-bg-card);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 24px;
+        text-align: center;
+        transition: 0.3s ease;
+      }
+      .stat-card:hover {
+        border-color: var(--color-border-hover);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      }
+      .stat-value {
+        font-size: 2rem;
+        font-weight: 800;
+        background: linear-gradient(
+          135deg,
+          var(--color-primary-light),
+          var(--color-accent)
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .stat-label {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--color-text-muted);
+        margin-top: 4px;
+      }
+      .stat-detail {
+        font-size: 0.85rem;
+        color: var(--color-text-secondary);
+        margin-top: 8px;
+      }
+      .chart-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(540px, 1fr));
+        gap: 20px;
+      }
+      .chart-card {
+        background: var(--color-bg-card);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 24px;
+      }
+      .chart-card h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--color-text);
+        margin-bottom: 16px;
+      }
+      .chart-card canvas {
+        width: 100% !important;
+        max-height: 340px;
+      }
+      .config-tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+      }
+      .config-tab {
+        padding: 8px 16px;
+        background: var(--color-bg-card);
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        color: var(--color-text-secondary);
+        font-family: inherit;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: 0.3s ease;
+      }
+      .config-tab:hover {
+        border-color: var(--color-primary);
+        color: var(--color-primary-light);
+      }
+      .config-tab.active {
+        background: rgba(99, 102, 241, 0.15);
+        border-color: var(--color-primary);
+        color: var(--color-primary-light);
+        font-weight: 600;
+      }
+      .data-table-wrapper {
+        overflow-x: auto;
+        margin-top: 20px;
+      }
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+      }
+      .data-table th {
+        background: rgba(99, 102, 241, 0.1);
+        color: var(--color-primary-light);
+        text-align: left;
+        padding: 12px 16px;
+        font-weight: 600;
+        border-bottom: 2px solid var(--color-border);
+        white-space: nowrap;
+      }
+      .data-table td {
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--color-border);
+        color: var(--color-text);
+      }
+      .data-table tr:hover td {
+        background: rgba(255, 255, 255, 0.02);
+      }
+      .data-table .num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      .config-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+      .config-badge.standalone {
+        background: rgba(34, 197, 94, 0.15);
+        color: #22c55e;
+      }
+      .config-badge.cloud1 {
+        background: rgba(99, 102, 241, 0.15);
+        color: #818cf8;
+      }
+      .config-badge.cloud3n1z {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+      }
+      .config-badge.cloud3n3z {
+        background: rgba(239, 68, 68, 0.15);
+        color: #f87171;
+      }
+      .insight-card {
+        background: var(--color-bg-card);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 24px;
+        margin-top: 20px;
+      }
+      .insight-card h3 {
+        font-size: 1rem;
+        margin-bottom: 12px;
+        color: var(--color-text-bright);
+      }
+      .insight-card ul {
+        list-style: none;
+        padding: 0;
+      }
+      .insight-card li {
+        padding: 6px 0;
+        color: var(--color-text-secondary);
+        font-size: 0.9rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .insight-card li::before {
+        content: "→";
+        color: var(--color-primary-light);
+        font-weight: 700;
+        flex-shrink: 0;
+      }
+      @media (max-width: 600px) {
+        .chart-grid {
+          grid-template-columns: 1fr;
         }
         .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-            margin-bottom: 32px;
+          grid-template-columns: repeat(2, 1fr);
         }
-        .stat-card {
-            background: var(--color-bg-card);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--color-border);
-            border-radius: 12px;
-            padding: 24px;
-            text-align: center;
-            transition: 0.3s ease;
+        .dashboard-header h1 {
+          font-size: 1.8rem;
         }
-        .stat-card:hover {
-            border-color: var(--color-border-hover);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-        }
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, var(--color-primary-light), var(--color-accent));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .stat-label {
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            color: var(--color-text-muted);
-            margin-top: 4px;
-        }
-        .stat-detail {
-            font-size: 0.85rem;
-            color: var(--color-text-secondary);
-            margin-top: 8px;
-        }
-        .chart-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(540px, 1fr));
-            gap: 20px;
-        }
-        .chart-card {
-            background: var(--color-bg-card);
-            border: 1px solid var(--color-border);
-            border-radius: 12px;
-            padding: 24px;
-        }
-        .chart-card h3 {
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--color-text);
-            margin-bottom: 16px;
-        }
-        .chart-card canvas {
-            width: 100% !important;
-            max-height: 340px;
-        }
-        .config-tabs {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 24px;
-            flex-wrap: wrap;
-        }
-        .config-tab {
-            padding: 8px 16px;
-            background: var(--color-bg-card);
-            border: 1px solid var(--color-border);
-            border-radius: 8px;
-            color: var(--color-text-secondary);
-            font-family: inherit;
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: 0.3s ease;
-        }
-        .config-tab:hover {
-            border-color: var(--color-primary);
-            color: var(--color-primary-light);
-        }
-        .config-tab.active {
-            background: rgba(99,102,241,0.15);
-            border-color: var(--color-primary);
-            color: var(--color-primary-light);
-            font-weight: 600;
-        }
-        .data-table-wrapper {
-            overflow-x: auto;
-            margin-top: 20px;
-        }
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-        .data-table th {
-            background: rgba(99,102,241,0.1);
-            color: var(--color-primary-light);
-            text-align: left;
-            padding: 12px 16px;
-            font-weight: 600;
-            border-bottom: 2px solid var(--color-border);
-            white-space: nowrap;
-        }
-        .data-table td {
-            padding: 10px 16px;
-            border-bottom: 1px solid var(--color-border);
-            color: var(--color-text);
-        }
-        .data-table tr:hover td {
-            background: rgba(255,255,255,0.02);
-        }
-        .data-table .num {
-            text-align: right;
-            font-variant-numeric: tabular-nums;
-        }
-        .config-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        .config-badge.standalone { background: rgba(34,197,94,0.15); color: #22c55e; }
-        .config-badge.cloud1 { background: rgba(99,102,241,0.15); color: #818cf8; }
-        .config-badge.cloud3n1z { background: rgba(245,158,11,0.15); color: #f59e0b; }
-        .config-badge.cloud3n3z { background: rgba(239,68,68,0.15); color: #f87171; }
-        .insight-card {
-            background: var(--color-bg-card);
-            border: 1px solid var(--color-border);
-            border-radius: 12px;
-            padding: 24px;
-            margin-top: 20px;
-        }
-        .insight-card h3 {
-            font-size: 1rem;
-            margin-bottom: 12px;
-            color: var(--color-text-bright);
-        }
-        .insight-card ul {
-            list-style: none;
-            padding: 0;
-        }
-        .insight-card li {
-            padding: 6px 0;
-            color: var(--color-text-secondary);
-            font-size: 0.9rem;
-            display: flex;
-            align-items: flex-start;
-            gap: 8px;
-        }
-        .insight-card li::before {
-            content: '→';
-            color: var(--color-primary-light);
-            font-weight: 700;
-            flex-shrink: 0;
-        }
-        @media (max-width: 600px) {
-            .chart-grid { grid-template-columns: 1fr; }
-            .stats-grid { grid-template-columns: repeat(2, 1fr); }
-            .dashboard-header h1 { font-size: 1.8rem; }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <!-- Navigation -->
     <nav class="navbar" id="navbar">
-        <div class="nav-container">
-            <a href="index.html" class="nav-brand">
-                <svg class="nav-logo" viewBox="0 0 32 32" fill="none"><circle cx="14" cy="14" r="10" stroke="currentColor" stroke-width="2.5"/><line x1="21.5" y1="21.5" x2="28" y2="28" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
-                <span>SolrSearch</span>
-            </a>
-            <div class="nav-links">
-                <a href="index.html" class="nav-link">Search</a>
-                <a href="benchmark.html" class="nav-link active">Benchmarks</a>
-            </div>
+      <div class="nav-container">
+        <a href="index.html" class="nav-brand">
+          <svg class="nav-logo" viewBox="0 0 32 32" fill="none">
+            <circle
+              cx="14"
+              cy="14"
+              r="10"
+              stroke="currentColor"
+              stroke-width="2.5"
+            />
+            <line
+              x1="21.5"
+              y1="21.5"
+              x2="28"
+              y2="28"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+            />
+          </svg>
+          <span>curlygores</span>
+        </a>
+        <div class="nav-links">
+          <a href="index.html" class="nav-link">Search</a>
+          <a href="benchmark.html" class="nav-link active">Benchmarks</a>
         </div>
+      </div>
     </nav>
 
     <!-- Header -->
     <div class="dashboard-header">
-        <h1>⚡ Benchmark Dashboard</h1>
-        <p>QPS performance analysis across standalone and SolrCloud configurations</p>
+      <h1>Benchmark Dashboard</h1>
+      <p></p>
     </div>
 
     <div class="dashboard">
-        <!-- System Overview -->
-        <h2 class="section-title">System Overview</h2>
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-value">8</div>
-                <div class="stat-label">CPU Cores</div>
-                <div class="stat-detail">Intel Xeon E5-2680 v3</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">32GB</div>
-                <div class="stat-label">RAM</div>
-                <div class="stat-detail">DDR4-2133 MHz</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">1TB</div>
-                <div class="stat-label">Storage</div>
-                <div class="stat-detail">NVMe SSD</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">9.4</div>
-                <div class="stat-label">Solr Version</div>
-                <div class="stat-detail">Lucene 9.8.0</div>
-            </div>
+      <!-- System Overview -->
+      <h2 class="section-title">System Overview</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">8</div>
+          <div class="stat-label">CPU Cores</div>
+          <div class="stat-detail">Intel Xeon E5-2680 v3</div>
         </div>
-
-        <!-- Peak Performance -->
-        <h2 class="section-title">Peak Performance Summary</h2>
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-value">4,708</div>
-                <div class="stat-label">Peak QPS</div>
-                <div class="stat-detail">Standalone @ 10.64 concurrency</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">1,336</div>
-                <div class="stat-label">SolrCloud 1-Node QPS</div>
-                <div class="stat-detail">2 shards · 2 replicas · 1 ZK</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">2,946</div>
-                <div class="stat-label">SolrCloud 3-Node QPS</div>
-                <div class="stat-detail">3 shards · 4 replicas · 1 ZK</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">800</div>
-                <div class="stat-label">3-Node + 3-ZK QPS</div>
-                <div class="stat-detail">3 shards · 4 replicas · 3 ZK</div>
-            </div>
+        <div class="stat-card">
+          <div class="stat-value">32GB</div>
+          <div class="stat-label">RAM</div>
+          <div class="stat-detail">DDR4-2133 MHz</div>
         </div>
-
-        <!-- Configuration Comparison Charts -->
-        <h2 class="section-title">Configuration Comparison</h2>
-
-        <div class="config-tabs">
-            <button class="config-tab active" onclick="showComparison()">All Configs</button>
-            <button class="config-tab" onclick="showSingleConfig(0)">
-                <span class="config-badge standalone">1</span> Standalone
-            </button>
-            <button class="config-tab" onclick="showSingleConfig(1)">
-                <span class="config-badge cloud1">2</span> 1-Node SolrCloud
-            </button>
-            <button class="config-tab" onclick="showSingleConfig(2)">
-                <span class="config-badge cloud3n1z">3</span> 3-Node / 1 ZK
-            </button>
-            <button class="config-tab" onclick="showSingleConfig(3)">
-                <span class="config-badge cloud3n3z">4</span> 3-Node / 3 ZK
-            </button>
+        <div class="stat-card">
+          <div class="stat-value">1TB</div>
+          <div class="stat-label">Storage</div>
+          <div class="stat-detail">NVMe SSD</div>
         </div>
-
-        <div class="chart-grid">
-            <div class="chart-card">
-                <h3>QPS vs Concurrency</h3>
-                <canvas id="qpsChart"></canvas>
-            </div>
-            <div class="chart-card">
-                <h3>QPS Comparison (Peak Values)</h3>
-                <canvas id="comparisonChart"></canvas>
-            </div>
+        <div class="stat-card">
+          <div class="stat-value">9.4</div>
+          <div class="stat-label">Solr Version</div>
+          <div class="stat-detail">Lucene 9.8.0</div>
         </div>
+      </div>
 
-        <!-- Standalone Detailed View -->
-        <h2 class="section-title">Standalone Configuration — Detailed Results</h2>
-        <div class="chart-grid">
-            <div class="chart-card">
-                <h3>QPS Scaling Curve</h3>
-                <canvas id="standaloneQpsChart"></canvas>
-            </div>
-            <div class="chart-card">
-                <h3>Requests per Test Run</h3>
-                <canvas id="standaloneRequestsChart"></canvas>
-            </div>
+      <!-- Peak Performance -->
+      <h2 class="section-title">Peak Performance Summary</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">4,708</div>
+          <div class="stat-label">Peak QPS</div>
+          <div class="stat-detail">Standalone @ 10.64 concurrency</div>
         </div>
-
-        <!-- Data Tables -->
-        <h2 class="section-title">Raw Benchmark Data</h2>
-
-        <div class="config-tabs" id="table-tabs">
-            <button class="config-tab active" onclick="showTable(0, this)">Standalone</button>
-            <button class="config-tab" onclick="showTable(1, this)">1-Node Cloud</button>
-            <button class="config-tab" onclick="showTable(2, this)">3-Node / 1 ZK</button>
-            <button class="config-tab" onclick="showTable(3, this)">3-Node / 3 ZK</button>
+        <div class="stat-card">
+          <div class="stat-value">1,336</div>
+          <div class="stat-label">SolrCloud 1-Node QPS</div>
+          <div class="stat-detail">2 shards · 2 replicas · 1 ZK</div>
         </div>
-
-        <div class="data-table-wrapper">
-            <table class="data-table" id="benchmarkTable">
-                <thead>
-                    <tr>
-                        <th>Concurrency</th>
-                        <th class="num">Requests</th>
-                        <th class="num">Elapsed (s)</th>
-                        <th class="num">QPS</th>
-                    </tr>
-                </thead>
-                <tbody id="tableBody"></tbody>
-            </table>
+        <div class="stat-card">
+          <div class="stat-value">2,946</div>
+          <div class="stat-label">SolrCloud 3-Node QPS</div>
+          <div class="stat-detail">3 shards · 4 replicas · 1 ZK</div>
         </div>
-
-        <!-- Insights -->
-        <div class="insight-card">
-            <h3>Key Findings</h3>
-            <ul>
-                <li><strong>Standalone dominates</strong> — Peak 4,708 QPS. Single-core mode avoids inter-node coordination overhead, making it optimal for single-machine deployments.</li>
-                <li><strong>SolrCloud overhead is significant on a single host</strong> — ZooKeeper coordination and shard routing reduce throughput when all nodes share the same hardware.</li>
-                <li><strong>3-Node cluster showed instability</strong> — Performance degrades rapidly beyond 7 concurrent users, likely due to resource contention on a single machine simulating 3 nodes.</li>
-                <li><strong>Adding more ZooKeeper nodes on the same host hurts performance</strong> — 3 ZK nodes peaked at only ~800 QPS vs 2,946 with 1 ZK, due to ZK quorum overhead on shared resources.</li>
-                <li><strong>Standalone scales linearly up to ~11 concurrent users</strong>, then plateaus around 3,700-3,800 QPS, indicating CPU saturation.</li>
-                <li><strong>True distributed benefit requires multiple physical machines</strong> — SolrCloud's advantages in fault tolerance and horizontal scaling are best realized across separate hosts.</li>
-            </ul>
+        <div class="stat-card">
+          <div class="stat-value">800</div>
+          <div class="stat-label">3-Node + 3-ZK QPS</div>
+          <div class="stat-detail">3 shards · 4 replicas · 3 ZK</div>
         </div>
+      </div>
+
+      <!-- Configuration Comparison Charts -->
+      <h2 class="section-title">Configuration Comparison</h2>
+
+      <div class="config-tabs">
+        <button class="config-tab active" onclick="showComparison()">
+          All Configs
+        </button>
+        <button class="config-tab" onclick="showSingleConfig(0)">
+          <span class="config-badge standalone">1</span> Standalone
+        </button>
+        <button class="config-tab" onclick="showSingleConfig(1)">
+          <span class="config-badge cloud1">2</span> 1-Node SolrCloud
+        </button>
+        <button class="config-tab" onclick="showSingleConfig(2)">
+          <span class="config-badge cloud3n1z">3</span> 3-Node / 1 ZK
+        </button>
+        <button class="config-tab" onclick="showSingleConfig(3)">
+          <span class="config-badge cloud3n3z">4</span> 3-Node / 3 ZK
+        </button>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-card">
+          <h3>QPS vs Concurrency</h3>
+          <canvas id="qpsChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>QPS Comparison (Peak Values)</h3>
+          <canvas id="comparisonChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Standalone Detailed View -->
+      <h2 class="section-title">Standalone Configuration — Detailed Results</h2>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <h3>QPS Scaling Curve</h3>
+          <canvas id="standaloneQpsChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Requests per Test Run</h3>
+          <canvas id="standaloneRequestsChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Data Tables -->
+      <h2 class="section-title">Raw Benchmark Data</h2>
+
+      <div class="config-tabs" id="table-tabs">
+        <button class="config-tab active" onclick="showTable(0, this)">
+          Standalone
+        </button>
+        <button class="config-tab" onclick="showTable(1, this)">
+          1-Node Cloud
+        </button>
+        <button class="config-tab" onclick="showTable(2, this)">
+          3-Node / 1 ZK
+        </button>
+        <button class="config-tab" onclick="showTable(3, this)">
+          3-Node / 3 ZK
+        </button>
+      </div>
+
+      <div class="data-table-wrapper">
+        <table class="data-table" id="benchmarkTable">
+          <thead>
+            <tr>
+              <th>Concurrency</th>
+              <th class="num">Requests</th>
+              <th class="num">Elapsed (s)</th>
+              <th class="num">QPS</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
     </div>
 
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="footer-content">
-            <div class="footer-brand">
-                <svg class="footer-logo" viewBox="0 0 32 32" fill="none"><circle cx="14" cy="14" r="10" stroke="currentColor" stroke-width="2"/><line x1="21.5" y1="21.5" x2="28" y2="28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                <span>SolrSearch Engine</span>
-            </div>
-            <p class="footer-text">High QPS Text Search Engine — Apache Solr + ZooKeeper</p>
-            <p class="footer-text">DBMS Term Project &bull; Benchmarked with Siege &amp; C++ Multithreaded Client</p>
-        </div>
-    </footer>
-
     <script>
-    // ============================================
-    // Benchmark Data (from notes.txt)
-    // ============================================
-    const CONFIGS = [
+      // ============================================
+      // Benchmark Data (from notes.txt)
+      // ============================================
+      const CONFIGS = [
         {
-            name: 'Standalone (1 core)',
-            color: '#22c55e',
-            bgColor: 'rgba(34,197,94,0.15)',
-            data: [
-                { concurrency: 1.95, requests: 6970, elapsed: 9.09, qps: 766.78 },
-                { concurrency: 2.93, requests: 17162, elapsed: 9.93, qps: 1728.30 },
-                { concurrency: 4.86, requests: 18041, elapsed: 9.93, qps: 1816.82 },
-                { concurrency: 6.74, requests: 36905, elapsed: 9.93, qps: 3716.52 },
-                { concurrency: 10.64, requests: 46845, elapsed: 9.95, qps: 4708.04 },
-                { concurrency: 12.63, requests: 41654, elapsed: 9.95, qps: 4186.33 },
-                { concurrency: 16.61, requests: 39735, elapsed: 9.94, qps: 3997.48 },
-                { concurrency: 18.64, requests: 36789, elapsed: 9.94, qps: 3701.11 },
-                { concurrency: 22.62, requests: 37421, elapsed: 9.94, qps: 3764.69 },
-                { concurrency: 28.62, requests: 37750, elapsed: 9.94, qps: 3797.79 },
-                { concurrency: 30.58, requests: 37371, elapsed: 9.94, qps: 3759.66 },
-                { concurrency: 36.62, requests: 37597, elapsed: 9.94, qps: 3782.39 },
-                { concurrency: 40.58, requests: 38513, elapsed: 9.94, qps: 3874.55 },
-                { concurrency: 42.6, requests: 37896, elapsed: 9.94, qps: 3812.47 },
-                { concurrency: 46.6, requests: 37993, elapsed: 9.94, qps: 3822.23 },
-                { concurrency: 52.55, requests: 37336, elapsed: 9.95, qps: 3752.36 },
-                { concurrency: 58.46, requests: 34965, elapsed: 9.93, qps: 3521.15 },
-                { concurrency: 60.51, requests: 32272, elapsed: 9.95, qps: 3243.42 },
-                { concurrency: 66.46, requests: 32297, elapsed: 9.92, qps: 3255.75 },
-                { concurrency: 70.38, requests: 32365, elapsed: 9.94, qps: 3256.04 },
-                { concurrency: 72.46, requests: 32262, elapsed: 9.94, qps: 3245.67 },
-                { concurrency: 77.94, requests: 32410, elapsed: 9.93, qps: 3263.85 },
-            ]
-        },
-        {
-            name: '1-Node Cloud (2s × 2r, 1 ZK)',
-            color: '#818cf8',
-            bgColor: 'rgba(99,102,241,0.15)',
-            data: [
-                { concurrency: 1.94, requests: 4989, elapsed: 9.71, qps: 513.80 },
-                { concurrency: 2.9, requests: 13308, elapsed: 9.96, qps: 1336.14 },
-                { concurrency: 0.76, requests: 2586, elapsed: 9.96, qps: 259.64 },
-            ]
-        },
-        {
-            name: '3-Node Cloud (3s × 4r, 1 ZK)',
-            color: '#f59e0b',
-            bgColor: 'rgba(245,158,11,0.15)',
-            data: [
-                { concurrency: 1.97, requests: 3371, elapsed: 9.43, qps: 357.48 },
-                { concurrency: 2.92, requests: 6458, elapsed: 9.95, qps: 649.05 },
-                { concurrency: 4.83, requests: 20543, elapsed: 9.95, qps: 2064.62 },
-                { concurrency: 6.75, requests: 29345, elapsed: 9.96, qps: 2946.29 },
-                { concurrency: 5.58, requests: 23721, elapsed: 9.96, qps: 2381.63 },
-                { concurrency: 0.58, requests: 1468, elapsed: 9.96, qps: 147.39 },
-                { concurrency: 2.32, requests: 7265, elapsed: 9.96, qps: 729.42 },
-                { concurrency: 3.66, requests: 12346, elapsed: 9.94, qps: 1242.05 },
-                { concurrency: 0.97, requests: 1424, elapsed: 9.96, qps: 142.97 },
-                { concurrency: 2.54, requests: 8266, elapsed: 9.94, qps: 831.59 },
-                { concurrency: 1.7, requests: 3515, elapsed: 9.94, qps: 353.62 },
-                { concurrency: 1.4, requests: 3369, elapsed: 9.94, qps: 338.93 },
-            ]
-        },
-        {
-            name: '3-Node Cloud (3s × 4r, 3 ZK)',
-            color: '#f87171',
-            bgColor: 'rgba(239,68,68,0.15)',
-            data: [
-                { concurrency: 1.96, requests: 3230, elapsed: 9.61, qps: 336.11 },
-                { concurrency: 2.94, requests: 7597, elapsed: 9.95, qps: 763.52 },
-                { concurrency: 1.08, requests: 3709, elapsed: 9.96, qps: 372.39 },
-                { concurrency: 2.45, requests: 7955, elapsed: 9.94, qps: 800.30 },
-                { concurrency: 1.05, requests: 3183, elapsed: 9.96, qps: 319.58 },
-                { concurrency: 1.3, requests: 3930, elapsed: 9.94, qps: 395.37 },
-                { concurrency: 2.03, requests: 6682, elapsed: 9.94, qps: 672.23 },
-                { concurrency: 1.76, requests: 4772, elapsed: 9.94, qps: 480.08 },
-            ]
-        }
-    ];
-
-    // Keep chart/table order monotonic by measured concurrency.
-    const CHART_CONFIGS = CONFIGS.map(config => ({
-        ...config,
-        data: [...config.data].sort((a, b) => a.concurrency - b.concurrency)
-    }));
-
-    // Chart.js global config for dark theme
-    Chart.defaults.color = '#94a3b8';
-    Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
-    Chart.defaults.font.family = 'Inter, sans-serif';
-
-    // ============================================
-    // Charts
-    // ============================================
-    let qpsChart, comparisonChart, standaloneQpsChart, standaloneRequestsChart;
-    let currentTableConfig = 0;
-
-    function initCharts() {
-        // 1. Combined QPS chart
-        const qpsCtx = document.getElementById('qpsChart').getContext('2d');
-        qpsChart = new Chart(qpsCtx, {
-            type: 'line',
-            data: {
-                datasets: CHART_CONFIGS.map(config => ({
-                    label: config.name,
-                    data: config.data.map(d => ({ x: d.concurrency, y: d.qps })),
-                    borderColor: config.color,
-                    backgroundColor: config.bgColor,
-                    borderWidth: 2,
-                    pointRadius: 3,
-                    pointHoverRadius: 6,
-                    tension: 0.3,
-                    fill: false,
-                }))
+          name: "Standalone (1 core)",
+          color: "#22c55e",
+          bgColor: "rgba(34,197,94,0.15)",
+          data: [
+            { concurrency: 1.95, requests: 6970, elapsed: 9.09, qps: 766.78 },
+            { concurrency: 2.93, requests: 17162, elapsed: 9.93, qps: 1728.3 },
+            { concurrency: 4.86, requests: 18041, elapsed: 9.93, qps: 1816.82 },
+            { concurrency: 6.74, requests: 36905, elapsed: 9.93, qps: 3716.52 },
+            {
+              concurrency: 10.64,
+              requests: 46845,
+              elapsed: 9.95,
+              qps: 4708.04,
             },
-            options: {
-                responsive: true,
-                interaction: { mode: 'nearest', intersect: false },
-                plugins: {
-                    legend: { position: 'bottom', labels: { usePointStyle: true, padding: 16 } },
-                    tooltip: {
-                        backgroundColor: 'rgba(15,15,26,0.95)',
-                        borderColor: 'rgba(255,255,255,0.1)',
-                        borderWidth: 1,
-                        padding: 12,
-                        callbacks: {
-                            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(0)} QPS`
-                        }
-                    }
+            {
+              concurrency: 12.63,
+              requests: 41654,
+              elapsed: 9.95,
+              qps: 4186.33,
+            },
+            {
+              concurrency: 16.61,
+              requests: 39735,
+              elapsed: 9.94,
+              qps: 3997.48,
+            },
+            {
+              concurrency: 18.64,
+              requests: 36789,
+              elapsed: 9.94,
+              qps: 3701.11,
+            },
+            {
+              concurrency: 22.62,
+              requests: 37421,
+              elapsed: 9.94,
+              qps: 3764.69,
+            },
+            {
+              concurrency: 28.62,
+              requests: 37750,
+              elapsed: 9.94,
+              qps: 3797.79,
+            },
+            {
+              concurrency: 30.58,
+              requests: 37371,
+              elapsed: 9.94,
+              qps: 3759.66,
+            },
+            {
+              concurrency: 36.62,
+              requests: 37597,
+              elapsed: 9.94,
+              qps: 3782.39,
+            },
+            {
+              concurrency: 40.58,
+              requests: 38513,
+              elapsed: 9.94,
+              qps: 3874.55,
+            },
+            { concurrency: 42.6, requests: 37896, elapsed: 9.94, qps: 3812.47 },
+            { concurrency: 46.6, requests: 37993, elapsed: 9.94, qps: 3822.23 },
+            {
+              concurrency: 52.55,
+              requests: 37336,
+              elapsed: 9.95,
+              qps: 3752.36,
+            },
+            {
+              concurrency: 58.46,
+              requests: 34965,
+              elapsed: 9.93,
+              qps: 3521.15,
+            },
+            {
+              concurrency: 60.51,
+              requests: 32272,
+              elapsed: 9.95,
+              qps: 3243.42,
+            },
+            {
+              concurrency: 66.46,
+              requests: 32297,
+              elapsed: 9.92,
+              qps: 3255.75,
+            },
+            {
+              concurrency: 70.38,
+              requests: 32365,
+              elapsed: 9.94,
+              qps: 3256.04,
+            },
+            {
+              concurrency: 72.46,
+              requests: 32262,
+              elapsed: 9.94,
+              qps: 3245.67,
+            },
+            {
+              concurrency: 77.94,
+              requests: 32410,
+              elapsed: 9.93,
+              qps: 3263.85,
+            },
+          ],
+        },
+        {
+          name: "1-Node Cloud (2s × 2r, 1 ZK)",
+          color: "#818cf8",
+          bgColor: "rgba(99,102,241,0.15)",
+          data: [
+            { concurrency: 1.94, requests: 4989, elapsed: 9.71, qps: 513.8 },
+            { concurrency: 2.9, requests: 13308, elapsed: 9.96, qps: 1336.14 },
+            { concurrency: 0.76, requests: 2586, elapsed: 9.96, qps: 259.64 },
+          ],
+        },
+        {
+          name: "3-Node Cloud (3s × 4r, 1 ZK)",
+          color: "#f59e0b",
+          bgColor: "rgba(245,158,11,0.15)",
+          data: [
+            { concurrency: 1.97, requests: 3371, elapsed: 9.43, qps: 357.48 },
+            { concurrency: 2.92, requests: 6458, elapsed: 9.95, qps: 649.05 },
+            { concurrency: 4.83, requests: 20543, elapsed: 9.95, qps: 2064.62 },
+            { concurrency: 6.75, requests: 29345, elapsed: 9.96, qps: 2946.29 },
+            { concurrency: 5.58, requests: 23721, elapsed: 9.96, qps: 2381.63 },
+            { concurrency: 0.58, requests: 1468, elapsed: 9.96, qps: 147.39 },
+            { concurrency: 2.32, requests: 7265, elapsed: 9.96, qps: 729.42 },
+            { concurrency: 3.66, requests: 12346, elapsed: 9.94, qps: 1242.05 },
+            { concurrency: 0.97, requests: 1424, elapsed: 9.96, qps: 142.97 },
+            { concurrency: 2.54, requests: 8266, elapsed: 9.94, qps: 831.59 },
+            { concurrency: 1.7, requests: 3515, elapsed: 9.94, qps: 353.62 },
+            { concurrency: 1.4, requests: 3369, elapsed: 9.94, qps: 338.93 },
+          ],
+        },
+        {
+          name: "3-Node Cloud (3s × 4r, 3 ZK)",
+          color: "#f87171",
+          bgColor: "rgba(239,68,68,0.15)",
+          data: [
+            { concurrency: 1.96, requests: 3230, elapsed: 9.61, qps: 336.11 },
+            { concurrency: 2.94, requests: 7597, elapsed: 9.95, qps: 763.52 },
+            { concurrency: 1.08, requests: 3709, elapsed: 9.96, qps: 372.39 },
+            { concurrency: 2.45, requests: 7955, elapsed: 9.94, qps: 800.3 },
+            { concurrency: 1.05, requests: 3183, elapsed: 9.96, qps: 319.58 },
+            { concurrency: 1.3, requests: 3930, elapsed: 9.94, qps: 395.37 },
+            { concurrency: 2.03, requests: 6682, elapsed: 9.94, qps: 672.23 },
+            { concurrency: 1.76, requests: 4772, elapsed: 9.94, qps: 480.08 },
+          ],
+        },
+      ];
+
+      // Keep chart/table order monotonic by measured concurrency.
+      const CHART_CONFIGS = CONFIGS.map((config) => ({
+        ...config,
+        data: [...config.data].sort((a, b) => a.concurrency - b.concurrency),
+      }));
+
+      // Chart.js global config for dark theme
+      Chart.defaults.color = "#94a3b8";
+      Chart.defaults.borderColor = "rgba(255,255,255,0.06)";
+      Chart.defaults.font.family = "Inter, sans-serif";
+
+      // ============================================
+      // Charts
+      // ============================================
+      let qpsChart,
+        comparisonChart,
+        standaloneQpsChart,
+        standaloneRequestsChart;
+      let currentTableConfig = 0;
+
+      function initCharts() {
+        // 1. Combined QPS chart
+        const qpsCtx = document.getElementById("qpsChart").getContext("2d");
+        qpsChart = new Chart(qpsCtx, {
+          type: "line",
+          data: {
+            datasets: CHART_CONFIGS.map((config) => ({
+              label: config.name,
+              data: config.data.map((d) => ({ x: d.concurrency, y: d.qps })),
+              borderColor: config.color,
+              backgroundColor: config.bgColor,
+              borderWidth: 2,
+              pointRadius: 3,
+              pointHoverRadius: 6,
+              tension: 0.3,
+              fill: false,
+            })),
+          },
+          options: {
+            responsive: true,
+            interaction: { mode: "nearest", intersect: false },
+            plugins: {
+              legend: {
+                position: "bottom",
+                labels: { usePointStyle: true, padding: 16 },
+              },
+              tooltip: {
+                backgroundColor: "rgba(15,15,26,0.95)",
+                borderColor: "rgba(255,255,255,0.1)",
+                borderWidth: 1,
+                padding: 12,
+                callbacks: {
+                  label: (ctx) =>
+                    `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(0)} QPS`,
                 },
-                scales: {
-                    x: { type: 'linear', title: { display: true, text: 'Measured Concurrency' }, grid: { color: 'rgba(255,255,255,0.04)' } },
-                    y: { title: { display: true, text: 'Queries Per Second (QPS)' }, grid: { color: 'rgba(255,255,255,0.04)' } }
-                }
-            }
+              },
+            },
+            scales: {
+              x: {
+                type: "linear",
+                title: { display: true, text: "Measured Concurrency" },
+                grid: { color: "rgba(255,255,255,0.04)" },
+              },
+              y: {
+                title: { display: true, text: "Queries Per Second (QPS)" },
+                grid: { color: "rgba(255,255,255,0.04)" },
+              },
+            },
+          },
         });
 
         // 2. Peak QPS comparison bar chart
-        const compCtx = document.getElementById('comparisonChart').getContext('2d');
-        const peakValues = CHART_CONFIGS.map(c => Math.max(...c.data.map(d => d.qps)));
+        const compCtx = document
+          .getElementById("comparisonChart")
+          .getContext("2d");
+        const peakValues = CHART_CONFIGS.map((c) =>
+          Math.max(...c.data.map((d) => d.qps)),
+        );
         comparisonChart = new Chart(compCtx, {
-            type: 'bar',
-            data: {
-                labels: CHART_CONFIGS.map(c => c.name),
-                datasets: [{
-                    label: 'Peak QPS',
-                    data: peakValues,
-                    backgroundColor: CHART_CONFIGS.map(c => c.bgColor),
-                    borderColor: CHART_CONFIGS.map(c => c.color),
-                    borderWidth: 2,
-                    borderRadius: 8,
-                    barPercentage: 0.6,
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: 'rgba(15,15,26,0.95)',
-                        borderColor: 'rgba(255,255,255,0.1)',
-                        borderWidth: 1,
-                        callbacks: {
-                            label: ctx => `Peak: ${ctx.parsed.y.toFixed(0)} QPS`
-                        }
-                    }
+          type: "bar",
+          data: {
+            labels: CHART_CONFIGS.map((c) => c.name),
+            datasets: [
+              {
+                label: "Peak QPS",
+                data: peakValues,
+                backgroundColor: CHART_CONFIGS.map((c) => c.bgColor),
+                borderColor: CHART_CONFIGS.map((c) => c.color),
+                borderWidth: 2,
+                borderRadius: 8,
+                barPercentage: 0.6,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: "rgba(15,15,26,0.95)",
+                borderColor: "rgba(255,255,255,0.1)",
+                borderWidth: 1,
+                callbacks: {
+                  label: (ctx) => `Peak: ${ctx.parsed.y.toFixed(0)} QPS`,
                 },
-                scales: {
-                    x: { grid: { display: false } },
-                    y: { title: { display: true, text: 'QPS' }, grid: { color: 'rgba(255,255,255,0.04)' } }
-                }
-            }
+              },
+            },
+            scales: {
+              x: { grid: { display: false } },
+              y: {
+                title: { display: true, text: "QPS" },
+                grid: { color: "rgba(255,255,255,0.04)" },
+              },
+            },
+          },
         });
 
         // 3. Standalone QPS detailed
-        const saCtx = document.getElementById('standaloneQpsChart').getContext('2d');
+        const saCtx = document
+          .getElementById("standaloneQpsChart")
+          .getContext("2d");
         const saData = CHART_CONFIGS[0].data;
         standaloneQpsChart = new Chart(saCtx, {
-            type: 'line',
-            data: {
-                labels: saData.map(d => d.concurrency.toFixed(1)),
-                datasets: [{
-                    label: 'QPS',
-                    data: saData.map(d => d.qps),
-                    borderColor: '#22c55e',
-                    backgroundColor: 'rgba(34,197,94,0.1)',
-                    borderWidth: 2.5,
-                    pointRadius: 4,
-                    pointBackgroundColor: '#22c55e',
-                    tension: 0.3,
-                    fill: true,
-                }]
+          type: "line",
+          data: {
+            labels: saData.map((d) => d.concurrency.toFixed(1)),
+            datasets: [
+              {
+                label: "QPS",
+                data: saData.map((d) => d.qps),
+                borderColor: "#22c55e",
+                backgroundColor: "rgba(34,197,94,0.1)",
+                borderWidth: 2.5,
+                pointRadius: 4,
+                pointBackgroundColor: "#22c55e",
+                tension: 0.3,
+                fill: true,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: {
+                title: { display: true, text: "Concurrency" },
+                grid: { color: "rgba(255,255,255,0.04)" },
+              },
+              y: {
+                title: { display: true, text: "QPS" },
+                grid: { color: "rgba(255,255,255,0.04)" },
+                beginAtZero: true,
+              },
             },
-            options: {
-                responsive: true,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { title: { display: true, text: 'Concurrency' }, grid: { color: 'rgba(255,255,255,0.04)' } },
-                    y: { title: { display: true, text: 'QPS' }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }
-                }
-            }
+          },
         });
 
         // 4. Standalone requests bar chart
-        const srCtx = document.getElementById('standaloneRequestsChart').getContext('2d');
+        const srCtx = document
+          .getElementById("standaloneRequestsChart")
+          .getContext("2d");
         standaloneRequestsChart = new Chart(srCtx, {
-            type: 'bar',
-            data: {
-                labels: saData.map(d => d.concurrency.toFixed(1)),
-                datasets: [{
-                    label: 'Total Requests',
-                    data: saData.map(d => d.requests),
-                    backgroundColor: 'rgba(99,102,241,0.3)',
-                    borderColor: '#6366f1',
-                    borderWidth: 1.5,
-                    borderRadius: 4,
-                }]
+          type: "bar",
+          data: {
+            labels: saData.map((d) => d.concurrency.toFixed(1)),
+            datasets: [
+              {
+                label: "Total Requests",
+                data: saData.map((d) => d.requests),
+                backgroundColor: "rgba(99,102,241,0.3)",
+                borderColor: "#6366f1",
+                borderWidth: 1.5,
+                borderRadius: 4,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: {
+                title: { display: true, text: "Concurrency" },
+                grid: { display: false },
+              },
+              y: {
+                title: { display: true, text: "Requests in ~10s" },
+                grid: { color: "rgba(255,255,255,0.04)" },
+                beginAtZero: true,
+              },
             },
-            options: {
-                responsive: true,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { title: { display: true, text: 'Concurrency' }, grid: { display: false } },
-                    y: { title: { display: true, text: 'Requests in ~10s' }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }
-                }
-            }
+          },
         });
 
         // Initialize table
         showTable(0);
-    }
+      }
 
-    // ============================================
-    // Interactions
-    // ============================================
-    function showComparison() {
-        const tabs = document.querySelectorAll('.config-tabs')[0].querySelectorAll('.config-tab');
+      // ============================================
+      // Interactions
+      // ============================================
+      function showComparison() {
+        const tabs = document
+          .querySelectorAll(".config-tabs")[0]
+          .querySelectorAll(".config-tab");
         tabs.forEach((t, i) => {
-            t.classList.toggle('active', i === 0);
+          t.classList.toggle("active", i === 0);
         });
-        qpsChart.data.datasets.forEach(ds => {
-            ds.hidden = false;
+        qpsChart.data.datasets.forEach((ds) => {
+          ds.hidden = false;
         });
         qpsChart.update();
-    }
+      }
 
-    function showSingleConfig(index) {
-        const tabs = document.querySelectorAll('.config-tabs')[0].querySelectorAll('.config-tab');
+      function showSingleConfig(index) {
+        const tabs = document
+          .querySelectorAll(".config-tabs")[0]
+          .querySelectorAll(".config-tab");
         tabs.forEach((t, i) => {
-            t.classList.toggle('active', i === index + 1);
+          t.classList.toggle("active", i === index + 1);
         });
         qpsChart.data.datasets.forEach((ds, i) => {
-            ds.hidden = (i !== index);
+          ds.hidden = i !== index;
         });
         qpsChart.update();
-    }
+      }
 
-    function showTable(configIndex, clickedTab) {
+      function showTable(configIndex, clickedTab) {
         currentTableConfig = configIndex;
-        const tbody = document.getElementById('tableBody');
+        const tbody = document.getElementById("tableBody");
         const config = CHART_CONFIGS[configIndex];
 
         // Update tab active state
         if (clickedTab) {
-            document.getElementById('table-tabs').querySelectorAll('.config-tab').forEach(t => t.classList.remove('active'));
-            clickedTab.classList.add('active');
+          document
+            .getElementById("table-tabs")
+            .querySelectorAll(".config-tab")
+            .forEach((t) => t.classList.remove("active"));
+          clickedTab.classList.add("active");
         }
 
-        tbody.innerHTML = config.data.map(d => `
+        tbody.innerHTML = config.data
+          .map(
+            (d) => `
             <tr>
                 <td>${d.concurrency.toFixed(2)}</td>
                 <td class="num">${d.requests.toLocaleString()}</td>
                 <td class="num">${d.elapsed.toFixed(2)}</td>
                 <td class="num" style="font-weight:600;color:${config.color}">${d.qps.toFixed(2)}</td>
             </tr>
-        `).join('');
-    }
+        `,
+          )
+          .join("");
+      }
 
-    // Initialize on DOM load
-    document.addEventListener('DOMContentLoaded', initCharts);
+      // Initialize on DOM load
+      document.addEventListener("DOMContentLoaded", initCharts);
     </script>
 
-<!-- BEGIN AUTO BENCHMARK RESULTS -->
+    <!-- BEGIN AUTO BENCHMARK RESULTS -->
 
-        <section id="benchmark-results">
-            <h2>Benchmark Results from the Siege Multithreaded Client</h2>
-
-            <div class="benchmark-summary">
-                <p>The following charts display performance results from running Siege, a HTTP load testing and benchmarking utility,
-                against our Apache Solr deployment. These tests measure query performance under various concurrency levels.</p>
-
-                <h3>Performance Metrics</h3>
-                <p>Latest run point: <strong>3307.82 queries per second</strong> at concurrency <strong>80.60</strong>.</p>
-                <p>Peak observed point: <strong>3307.82 queries per second</strong> at concurrency <strong>80.60</strong>.</p>
-            </div>
-
-            <div class="visualization">
-                <h3>Concurrency vs QPS</h3>
-                <img src="images/concurrency_vs_qps.png" alt="Concurrency vs QPS Chart" class="benchmark-image">
-                <p>Points are sorted by measured concurrency before plotting to avoid backtracking lines.</p>
-            </div>
-
-            <div class="visualization">
-                <h3>QPS Across Sequential Test Runs</h3>
-                <img src="images/qps_over_time.png" alt="QPS Across Test Runs Chart" class="benchmark-image">
-                <p>This chart tracks QPS by test execution order.</p>
-            </div>
-
-            <div class="visualization">
-                <h3>Search Engine Comparison</h3>
-                <img src="images/engine_comparison.png" alt="Search Engine Comparison Chart" class="benchmark-image">
-                <p>Comparison of Apache Solr's performance against other popular search engines under similar test conditions.</p>
-            </div>
-
-            <div class="benchmark-data">
-                <h3>Detailed Results</h3>
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Timestamp</th>
-                            <th>Concurrency</th>
-                            <th>Requests</th>
-                            <th>Elapsed Time (s)</th>
-                            <th>QPS</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-    
-                        <tr>
-                            <td>2026-04-14T12:28:06Z</td>
-                            <td>1.97</td>
-                            <td>413</td>
-                            <td>2.46</td>
-                            <td>167.89</td>
-                        </tr>
-        
-                        <tr>
-                            <td>2026-04-14T12:28:06Z</td>
-                            <td>2.92</td>
-                            <td>1150</td>
-                            <td>2.95</td>
-                            <td>389.83</td>
-                        </tr>
-        
-                        <tr>
-                            <td>2026-04-14T12:28:06Z</td>
-                            <td>4.92</td>
-                            <td>2310</td>
-                            <td>2.95</td>
-                            <td>783.05</td>
-                        </tr>
-        
-                        <tr>
-                            <td>2026-04-14T12:28:06Z</td>
-                            <td>6.88</td>
-                            <td>3118</td>
-                            <td>2.95</td>
-                            <td>1056.95</td>
-                        </tr>
-        
-                        <tr>
-                            <td>2026-04-14T12:28:06Z</td>
-                            <td>10.81</td>
-                            <td>5127</td>
-                            <td>2.95</td>
-                            <td>1737.97</td>
-                        </tr>
-        
-                        <tr>
-                            <td>2026-04-14T12:28:06Z</td>
-                            <td>12.78</td>
-                            <td>7725</td>
-                            <td>2.95</td>
-                            <td>2618.64</td>
-                        </tr>
-        
-                        <tr>
-                            <td>2026-04-14T12:28:06Z</td>
-                            <td>16.66</td>
-                            <td>8353</td>
-                            <td>2.96</td>
-                            <td>2821.96</td>
-                        </tr>
-        
-                        <tr>
-                            <td>2026-04-14T12:28:06Z</td>
-                            <td>18.69</td>
-                            <td>8154</td>
-                            <td>2.95</td>
-                            <td>2764.07</td>
-                        </tr>
-        
-                        <tr>
-                            <td>2026-04-14T12:28:06Z</td>
-                            <td>22.72</td>
-                            <td>7919</td>
-                            <td>2.95</td>
-                            <td>2684.41</td>
-                        </tr>
-        
-                        <tr>
-                            <td>2026-04-14T12:28:06Z</td>
-                            <td>28.64</td>
-                            <td>8721</td>
-                            <td>2.95</td>
-                            <td>2956.27</td>
-                        </tr>
-        
-                        <tr>
-                            <td>2026-04-14T12:28:06Z</td>
-                            <td>78.04</td>
-                            <td>9395</td>
-                            <td>2.95</td>
-                            <td>3184.75</td>
-                        </tr>
-        
-                        <tr>
-                            <td>2026-04-14T12:28:06Z</td>
-                            <td>80.60</td>
-                            <td>9725</td>
-                            <td>2.94</td>
-                            <td>3307.82</td>
-                        </tr>
-        
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="benchmark-insights">
-                <h3>Key Insights</h3>
-                <ul>
-                    <li>Apache Solr shows strong performance scaling as concurrency increases.</li>
-                    <li>Ordering data by concurrency produces an accurate scaling curve.</li>
-                    <li>The benchmark section is auto-refreshed on each run instead of duplicated.</li>
-                </ul>
-            </div>
-        </section>
-
-        <style>
-            #benchmark-results {
-                margin: 2rem 0;
-                padding: 1rem;
-                background-color: #f9f9f9;
-                border-radius: 5px;
-            }
-            .benchmark-image {
-                max-width: 100%;
-                height: auto;
-                margin: 1rem 0;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-            }
-            .visualization {
-                margin: 2rem 0;
-            }
-            .data-table {
-                width: 100%;
-                border-collapse: collapse;
-                margin: 1rem 0;
-            }
-            .data-table th, .data-table td {
-                border: 1px solid #ddd;
-                padding: 8px;
-                text-align: right;
-            }
-            .data-table th {
-                background-color: #f2f2f2;
-                text-align: center;
-            }
-            .benchmark-insights {
-                margin-top: 2rem;
-            }
-        </style>
-    
-<!-- END AUTO BENCHMARK RESULTS -->
-</body>
+    <!-- END AUTO BENCHMARK RESULTS -->
+  </body>
 </html>
