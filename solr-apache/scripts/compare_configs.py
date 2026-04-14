@@ -12,9 +12,7 @@ matplotlib.use('Agg')
 import numpy as np
 from datetime import datetime
 
-# ============================================
-# Benchmark Data (from notes.txt)
-# ============================================
+# benchmark data from notes.txt
 CONFIGS = {
     "Standalone (1 core)": {
         "color": "#22c55e",

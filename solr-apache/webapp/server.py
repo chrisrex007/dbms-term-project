@@ -58,14 +58,13 @@ class SolrProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(error_msg)
 
     def log_message(self, format, *args):
-        # Quieter logging - only log errors and proxied requests
         if "/solr/" in (args[0] if args else ""):
             super().log_message(format, *args)
 
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     server = http.server.HTTPServer(("0.0.0.0", PORT), SolrProxyHandler)
-    print(f"🚀 SolrSearch server running at http://localhost:{PORT}")
+    print(f"   SolrSearch server running at http://localhost:{PORT}")
     print(f"   Proxying Solr requests to {SOLR_BASE}")
     print(f"   Press Ctrl+C to stop")
     try:

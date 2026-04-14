@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-Solr Benchmark Visualization Tool
---------------------------------
 This script visualizes benchmark results from siege-benchmark.sh outputs.
 """
 

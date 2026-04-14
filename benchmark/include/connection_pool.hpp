@@ -9,7 +9,6 @@
 namespace solrbench {
 
 /**
- * ConnectionPool - Thread-safe pool of reusable CURL handles.
  *
  * Pre-initializes a fixed number of CURL easy handles and manages
  * thread-safe checkout/return. This avoids the overhead of creating
@@ -30,12 +29,8 @@ public:
      */
     ConnectionPool(size_t pool_size, const std::string& base_url);
 
-    /**
-     * Destructor - cleans up all CURL handles.
-     */
     ~ConnectionPool();
 
-    // Non-copyable, non-movable
     ConnectionPool(const ConnectionPool&) = delete;
     ConnectionPool& operator=(const ConnectionPool&) = delete;
     ConnectionPool(ConnectionPool&&) = delete;
@@ -54,14 +49,10 @@ public:
      */
     void release(CURL* handle);
 
-    /**
-     * Get the pool size.
-     */
     size_t size() const { return pool_size_; }
 
 private:
     CURL* create_handle();
-
     size_t pool_size_;
     std::string base_url_;
     std::queue<CURL*> available_;

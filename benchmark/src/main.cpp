@@ -9,10 +9,6 @@
 /**
  * Solr C++ Multithreaded Benchmark Client
  *
- * A high-performance HTTP load testing tool specifically designed for
- * benchmarking Apache Solr query endpoints. Uses std::thread for
- * concurrency and libcurl connection pooling for efficient HTTP requests.
- *
  * Features:
  *   - Configurable concurrency levels (tests multiple levels sequentially)
  *   - Connection pooling with CURL handle reuse

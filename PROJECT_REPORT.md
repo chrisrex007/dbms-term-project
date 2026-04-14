@@ -1,6 +1,6 @@
 # High QPS Text Search Engine using Apache Solr and ZooKeeper
 
-## DBMS Term Project — Complete Technical Report
+## DBMS Term Project - Complete Technical Report
 
 ---
 
@@ -28,8 +28,8 @@ Modern applications demand search systems capable of handling massive query volu
 
 The system supports full-text keyword search across a large document corpus. To evaluate its performance under stress, we conducted systematic benchmarking using two approaches:
 
-1. **Siege** — An HTTP load testing utility to simulate concurrent users
-2. **A custom C++ multithreaded HTTP client** — leveraging `std::thread` and `libcurl` with ThreadPool and ConnectionPool abstractions
+1. **Siege** - An HTTP load testing utility to simulate concurrent users
+2. **Custom C++ multithreaded HTTP client** - leveraging `std::thread` and `libcurl` with ThreadPool and ConnectionPool abstractions
 
 The primary outcome is a **QPS (Queries Per Second) analysis** measuring how throughput, latency, and error rates scale as concurrent request load increases. Results are visualized across four deployment configurations to highlight performance envelopes, identify bottlenecks, and demonstrate the trade-offs of distributed SolrCloud architecture versus standalone deployment on shared hardware.
 
@@ -51,13 +51,6 @@ Text search is a fundamental capability in virtually every modern application �
 
 Understanding exactly where these transitions occur — and how they change across deployment configurations — is the central question this project investigates.
 
-### Research Questions
-
-1. How does standalone Solr QPS scale with increasing concurrent load?
-2. Does SolrCloud (distributed mode) provide better throughput than standalone on the same hardware?
-3. What is the impact of adding more shards, replicas, and ZooKeeper nodes?
-4. Where are the performance bottlenecks in each configuration?
-
 ---
 
 ## 3. System Architecture
@@ -65,16 +58,16 @@ Understanding exactly where these transitions occur — and how they change acro
 ### 3.1 High-Level Architecture
 
 ```
-                              ┌──────────────────┐
+                              ┌───────────────────┐
                               │   Web Frontend    │
                               │  (Search + Upload │
                               │   + Benchmark)    │
-                              └────────┬─────────┘
+                              └────────┬──────────┘
                                        │ HTTP (REST)
                               ┌────────▼─────────┐
-                              │   Apache Solr     │
-                              │   (SolrCloud)     │
-                              │                   │
+                              │   Apache Solr    │
+                              │   (SolrCloud)    │
+                              │                  │
                               │  ┌─────┐ ┌─────┐ │
                               │  │Shard│ │Shard│ │
                               │  │  1  │ │  2  │ │
@@ -86,14 +79,14 @@ Understanding exactly where these transitions occur — and how they change acro
                               │  └─────┘ └─────┘ │
                               └────────┬─────────┘
                                        │
-                              ┌────────▼─────────┐
+                              ┌────────▼──────────┐
                               │  Apache ZooKeeper │
                               │  (Coordination)   │
                               │                   │
                               │  • Cluster state  │
                               │  • Leader election│
                               │  • Config mgmt    │
-                              └──────────────────┘
+                              └───────────────────┘
 ```
 
 ### 3.2 Standalone vs SolrCloud
@@ -120,7 +113,7 @@ This introduces network overhead and coordination latency — which is why SolrC
 
 ---
 
-## 4. Technology Stack
+## 4. Tech Stack
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
@@ -132,7 +125,6 @@ This introduces network overhead and coordination latency — which is why SolrC
 | **Python 3** | 3.x | Visualization scripts (matplotlib) |
 | **Chart.js** | 4.x | Interactive web-based benchmark charts |
 | **Java** | 11+ | Solr runtime (JVM) |
-| **PDF.js** | 3.5.141 | Client-side PDF text extraction |
 | **CMake** | 3.14+ | C++ build system |
 
 ---
@@ -142,7 +134,6 @@ This introduces network overhead and coordination latency — which is why SolrC
 ### 5.1 Prerequisites
 
 ```bash
-# Required packages
 sudo apt-get install build-essential cmake libcurl4-openssl-dev   # C++ client
 sudo apt-get install default-jdk                                   # Java 11+
 sudo apt-get install siege                                         # HTTP benchmarking
@@ -155,17 +146,7 @@ The setup script automates the full infrastructure deployment:
 
 1. **Downloads** Solr 9.3.0 and ZooKeeper 3.8.1 from Apache Archives
 2. **Extracts** both packages into the project directory
-3. **Configures ZooKeeper** with `zoo.cfg`:
-   ```ini
-   tickTime=2000
-   initLimit=10
-   syncLimit=5
-   dataDir=./data
-   clientPort=2181
-   server.1=192.168.1.1:2888:3888
-   server.2=192.168.1.2:2888:3888
-   server.3=192.168.1.3:2888:3888
-   ```
+3. **Configures ZooKeeper** with `zoo.cfg`
 4. **Creates Solr nodes** (by default 2 nodes on ports 8983 and 8984)
 5. Copies `solr.xml` (SolrCloud configuration) to each node
 6. **Starts Solr in SolrCloud mode** connected to ZooKeeper at `localhost:2181`
@@ -193,20 +174,7 @@ Key settings:
 - **connTimeout: 60s** — connection establishment timeout
 
 ### 5.4 Starting Services (`start-services.sh`)
-
-```bash
-# 1. Start ZooKeeper
-$BASE_DIR/zookeeper/bin/zkServer.sh start
-
-# 2. Wait for ZooKeeper readiness
-sleep 5
-
-# 3. Start Solr nodes in SolrCloud mode
-for i in $(seq 1 2); do
-    PORT=$((8983 + $i - 1))
-    $NODE_DIR/bin/solr start -c -p $PORT -z localhost:2181
-done
-```
+Launches zookeeper ensemble and Solr nodes
 
 ---
 
@@ -243,29 +211,18 @@ The schema defines the document structure and text analysis pipeline:
 
 #### Fields
 
-| Field | Type | Indexed | Stored | Purpose |
-|-------|------|---------|--------|---------|
-| `id` | string | ✅ | ✅ | Unique document identifier |
-| `title` | text_general | ✅ | ✅ | Document title (analyzed) |
-| `content` | text_general | ✅ | ✅ | Full text content |
-| `author` | string | ✅ | ✅ | Author name (exact match) |
-| `category` | string (multi) | ✅ | ✅ | Categories for faceting |
-| `tags` | string (multi) | ✅ | ✅ | Tags for faceting |
-| `url` | string | ✅ | ✅ | Source URL |
-| `domain` | string | ✅ | ✅ | Source domain |
-| `last_modified` | date | ✅ | ✅ | Last modification timestamp |
-| `text` | text_general (multi) | ✅ | ❌ | **Copy field** — aggregates all searchable content |
-
-#### Copy Fields
-
-```xml
-<copyField source="author" dest="text"/>
-<copyField source="category" dest="text"/>
-<copyField source="content" dest="text"/>
-<copyField source="title" dest="text"/>
-```
-
-The `text` field acts as a **catch-all search field** — when a user searches without specifying a field, all content is searched through this aggregated field. It's not stored (`stored="false"`) to save disk space since it's only used for searching.
+| Field | Type | Purpose |
+|-------|------|---------|
+| `id` | string | Unique document identifier |
+| `title` | text_general | Document title (analyzed) |
+| `content` | text_general | Full text content |
+| `author` | string | Author name (exact match) |
+| `category` | string (multi) | Categories for faceting |
+| `tags` | string (multi) | Tags for faceting |
+| `url` | string | Source URL |
+| `domain` | string | Source domain |
+| `last_modified` | date | Last modification timestamp |
+| `text` | text_general (multi) | **Copy field** — aggregates all searchable content |
 
 ### 6.2 Solr Request Configuration (`solrconfig.xml`)
 
@@ -315,56 +272,22 @@ The `text` field acts as a **catch-all search field** — when a user searches w
 
 ### 6.3 Data Ingestion (`index-sample-data.sh`)
 
-The data pipeline generates and indexes **10,000 sample documents** for benchmarking:
+The current ingestion script builds a benchmark corpus from the **Simple English Wikipedia dump** and indexes it into Solr.
 
-1. **Generates random documents** with:
-   - Titles across 10 categories (Technology, Science, Health, Business, etc.)
-   - 3-5 paragraphs of content per document
-   - Random category assignments (1-3 per document)
-   - Random tags (2-4 per document from 20 available tags)
-   - Random dates in the 2022-2024 range
+1. **Input and defaults**:
+  - `SOLR_URL=http://localhost:8983/solr/searchcore`
+  - `SAMPLE_COUNT=10000`
+  - `CHUNK_SIZE=500`
+  - `SAMPLE_FILE=downloads/wikipedia-abstracts-data.json`
 
-2. **Chunks the data** — splits 10K documents into 500-document chunks to avoid HTTP request size limits:
-   ```bash
-   CHUNK_SIZE=500
-   jq ".[$START:$((START + CHUNK_SIZE))]" sample-data.json > chunks/chunk$i.json
-   ```
+2. **Dataset generation path**:
+  - If `downloads/wikipedia-abstracts-data.json` does not exist, the script parses `simplewiki-latest-pages-articles.xml.bz2` via an embedded Python program.
+  - It keeps only namespace `0` pages, extracts the first usable paragraph, and truncates long abstracts.
+  - Each Solr document contains: `id`, `title`, `content`, `url`, `domain`, `author`, `category`, `tags`, `last_modified`, and `file_name`.
+  - The resulting JSON corpus is written to `downloads/wikipedia-abstracts-data.json`.
 
-3. **Indexes via Solr REST API**:
-   ```bash
-   curl -X POST -H "Content-Type: application/json" \
-     --data-binary @chunk$i.json \
-     "$SOLR_URL/update?commit=true"
-   ```
-
-4. **Optimizes the index** after all data is loaded:
-   ```bash
-   curl -X POST "$SOLR_URL/update?optimize=true&waitFlush=true"
-   ```
-
-### 6.4 User Document Upload (Web Interface)
-
-The web interface supports uploading and indexing **PDF and text files**:
-
-#### PDF Processing Pipeline
-1. **PDF.js** (client-side) extracts text content from each page
-2. Text is split into **paragraphs** using regex heuristics
-3. Each paragraph becomes a separate Solr document with metadata:
-   ```json
-   {
-     "id": "filename_page3_para2",
-     "content": "paragraph text...",
-     "paragraph_text": "paragraph text...",
-     "file_name": "document.pdf",
-     "page_number": 3,
-     "paragraph_number": 2,
-     "page_count": 15,
-     "title": "paragraph text... - Page 3"
-   }
-   ```
-4. Documents are indexed via `POST /update/json/docs?commitWithin=1000`
-
-This paragraph-level indexing enables **precise search results** — users find specific paragraphs rather than entire files.
+3. **Chunking and indexing**:
+  - Splits the JSON corpus into `downloads/chunks/chunkN.json` files using Python
 
 ---
 
@@ -372,41 +295,35 @@ This paragraph-level indexing enables **precise search results** — users find 
 
 ### 7.1 Query Processing
 
-When a user enters a search query, the frontend constructs a Solr query URL:
+When a user enters a search query, the frontend builds the request URL in `performSearch()` using `encodeURIComponent(currentQuery)`, `currentPage` for offset, and `ROWS_PER_PAGE` for page size (currently 10):
 
-```
-http://localhost:8983/solr/searchcore/select?
-  q=quantum+computing          ← Search query
-  &start=0&rows=10             ← Pagination
-  &hl=on                       ← Highlighting enabled
+```bash
+/solr/searchcore/select?
+  q=<encoded user query>
+  &start=<currentPage>
+  &rows=10
+  &hl=on
   &hl.fl=content,paragraph_text
-  &hl.snippets=3&hl.fragsize=150
-  &hl.simple.pre=<mark>        ← Highlight tags
+  &hl.snippets=3
+  &hl.fragsize=150
+  &hl.simple.pre=<mark>
   &hl.simple.post=</mark>
-  &facet=on                    ← Faceting
+  &hl.maxAnalyzedChars=251000
+  &facet=on
   &facet.field=file_name
-  &group=true                  ← Group results by file
+  &facet.mincount=1
+  &facet.limit=20
+  &group=true
   &group.field=file_name
   &group.limit=10
-  &wt=json                     ← JSON response format
+  &wt=json
 ```
+
+After the fetch returns, the frontend measures end-to-end UI response time with `performance.now()` and renders grouped results by `file_name`.
 
 ### 7.2 Result Grouping
 
-Results are **grouped by file_name** so all paragraphs from the same document appear together:
-
-```
-📄 networking_textbook.pdf
-  Page 3
-    ¶2: ...quantum computing enables exponential speedup...
-    ¶5: ...Shor's algorithm factors large numbers in polynomial time...
-  Page 7
-    ¶1: ...quantum key distribution provides information-theoretic security...
-
-📄 research_paper_2024.pdf
-  Page 1
-    ¶3: ...recent advances in quantum error correction...
-```
+Results are **grouped by file_name** so all paragraphs from the same document appear together
 
 ### 7.3 Feature Summary
 
@@ -418,10 +335,7 @@ Results are **grouped by file_name** so all paragraphs from the same document ap
 | Faceted navigation | Facet on `file_name`, `category`, `tags` |
 | Result grouping | `group.field=file_name` |
 | Pagination | `start` and `rows` parameters |
-| PDF upload | PDF.js client-side extraction → paragraph-level indexing |
-| Text upload | FileReader API → paragraph splitting → indexing |
 | Response time display | `performance.now()` measurement with color indicators |
-| Keyboard navigation | Arrow keys + Enter for suggestion selection |
 
 ---
 
@@ -445,12 +359,12 @@ Results are **grouped by file_name** so all paragraphs from the same document ap
 4. **Outputs JSON** for downstream visualization
 
 **Query URL tested**:
-```
+```bash
 http://localhost:8983/solr/searchcore/select?q=TCP
 ```
 
 **Siege URL list** (`urls.txt`) for varied query testing:
-```
+```bash
 http://localhost:8983/solr/searchcore/select?q=sample
 http://localhost:8983/solr/searchcore/select?q=document
 http://localhost:8983/solr/searchcore/select?q=test
@@ -470,28 +384,28 @@ The custom C++ benchmark client provides capabilities that Siege does not — sp
 #### Architecture
 
 ```
-┌──────────────────┐
+┌───────────────────┐
 │    main.cpp       │  CLI argument parsing, config
 │    (entry point)  │
-└────────┬─────────┘
+└────────┬──────────┘
          │
 ┌────────▼─────────┐
-│  BenchmarkRunner  │  Orchestrates benchmark across concurrency levels
+│  BenchmarkRunner │  Orchestrates benchmark across concurrency levels
 └────────┬─────────┘
          │
     ┌────┴────┐
     │         │
-┌───▼───┐  ┌─▼────────────┐
+┌───▼────┐  ┌─▼────────────┐
 │Thread  │  │ Connection   │
 │Pool    │  │ Pool         │
 │(N thds)│  │(CURL handles)│
-└───┬───┘  └──────┬───────┘
+└───┬────┘  └──────┬───────┘
     │              │
     └──────┬───────┘
            │
-┌──────────▼──────────┐
+┌──────────▼───────────┐
 │  MetricsCollector    │  Thread-safe aggregation, percentile calc
-└─────────────────────┘
+└──────────────────────┘
 ```
 
 #### ThreadPool (`thread_pool.hpp/cpp`)
@@ -709,37 +623,13 @@ Standalone    ██████████████████████
 3N/3ZK Cloud  ████████                                            800 QPS
 ```
 
-### 9.7 Key Findings
-
-1. **Standalone wins on single-host deployments** — Peak 4,708 QPS demonstrates that Solr's Lucene core is extremely fast when unencumbered by coordination overhead.
-
-2. **SolrCloud overhead is 37-83% on shared hardware** — The inter-node communication, ZooKeeper coordination, and JVM resource contention eliminate the benefits of distributed architecture on a single machine.
-
-3. **Adding ZooKeeper nodes hurts when co-located** — 3-ZK ensemble peaked at only 800 QPS (83% slower than standalone), because the ZAB consensus protocol generates significant I/O and CPU overhead.
-
-4. **Standalone scales linearly to ~11 concurrent users** — After that, the single CPU core saturates and QPS plateaus around 3,700-3,800.
-
-5. **SolrCloud shows instability** — Both 3-node configurations exhibit violent QPS fluctuations, likely due to GC pauses, leader re-elections, and connection pool exhaustion.
-
-6. **True distributed advantages require separate physical machines** — SolrCloud's benefits (fault tolerance, horizontal scaling, load distribution) are designed for multi-machine deployments where each node has dedicated resources.
-
 ---
 
 ## 10. Web Interface & Dashboard
 
 ### 10.1 Search Interface (`index.html`)
 
-The search page provides a premium dark-themed interface with:
-
-- **Hero Section**: Large title with animated gradient orbs in the background
-- **Search Bar**: Glassmorphic design with glow effect on focus
-- **Auto-Suggest**: Dropdown with keyboard navigation (↑↓ Enter Esc)
-- **Faceted Sidebar**: Filter by file name and tags with custom checkboxes
-- **Result Cards**: Grouped by file, with page headers and paragraph numbers
-- **Highlighting**: Search terms highlighted with `<mark>` tags in amber
-- **Loading Skeletons**: Animated placeholder cards during search
-- **Response Time Badge**: Green (<300ms), Yellow (300-1000ms), Red (>1000ms)
-- **Document Upload**: Drag-and-drop zone for PDF/text file indexing
+![Search Interface](solr-apache/webapp/images/search.jpeg)
 
 ### 10.2 Benchmark Dashboard (`benchmark.html`)
 
@@ -755,6 +645,12 @@ Interactive dashboard built with Chart.js displaying:
 - **Tabbed Data Tables**: Raw data for each configuration
 - **Key Findings Section**: Analysis insights with bullet points
 
+![System Overview](solr-apache/webapp/images/system.jpeg)
+
+![Results Table](solr-apache/webapp/images/results.jpeg)
+
+![Analysis](solr-apache/webapp/images/graphs.jpeg)
+
 ---
 
 ## 11. Project Structure
@@ -762,7 +658,6 @@ Interactive dashboard built with Chart.js displaying:
 ```
 distributed-search-engine/
 ├── PROJECT_REPORT.md                      ← This file
-├── prompt.md                              ← Project proposal
 ├── README.md                              ← General overview
 │
 ├── benchmark/                             ← C++ Multithreaded HTTP Client
@@ -838,8 +733,13 @@ cd solr-apache/scripts
 ```bash
 ./index-sample-data.sh   # Generates + indexes 10,000 documents
 ```
+### Step 3: Start the backend proxy server
+```bash
+cd ..
+python3 webapp/server.py
+```
 
-### Step 3: Open Search Interface
+### Step 4: Open Search Interface
 
 Open in browser:
 ```
@@ -851,16 +751,16 @@ Or with Solr running, access Solr Admin:
 http://localhost:8983/solr/
 ```
 
-### Step 4: Run Siege Benchmarks
+### Step 5: Run Siege Benchmarks
 
 ```bash
-./run-siege-benchmark.sh
+./scripts/run-siege-benchmark.sh
 ```
 
-### Step 5: Build & Run C++ Benchmark Client
+### Step 6: Build & Run C++ Benchmark Client
 
 ```bash
-cd ../../benchmark
+cd ../benchmark
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
@@ -875,7 +775,7 @@ make -j$(nproc)
 ### Step 6: Generate Comparison Charts
 
 ```bash
-cd ../../solr-apache/scripts
+cd ../solr-apache/scripts
 python3 compare_configs.py
 ```
 
@@ -887,7 +787,7 @@ file:///path/to/distributed-search-engine/solr-apache/webapp/benchmark.html
 ```
 
 
-# cleanup: 
+# Cleanup: 
 
 ## Safely shutdown the UI backend
 ```
@@ -896,12 +796,12 @@ fuser -k 9090/tcp
 
 ## Broadcast the shutdown signal to the entire Solr and Jetty network
 ```
-/home/chrisrex/distributed-search-engine/solr-apache/scripts/solr-nodes/node1/bin/solr stop -all
+/home/$USER/dbms-term-project/solr-apache/scripts/solr-nodes/node1/bin/solr stop -all
 ```
 
 ## Terminate the ZooKeeper orchestrators
 ```
-cd /home/chrisrex/distributed-search-engine/solr-apache/scripts/zookeeper
+cd /home/$USER/dbms-term-project/solr-apache/scripts/zookeeper
 ./bin/zkServer.sh stop conf/zoo1.cfg
 ./bin/zkServer.sh stop conf/zoo2.cfg
 ./bin/zkServer.sh stop conf/zoo3.cfg
@@ -928,14 +828,3 @@ cd /home/chrisrex/distributed-search-engine/solr-apache/scripts/zookeeper
 - **Multi-configuration comparison framework** with automated chart generation
 - **Premium web interface** with PDF/text upload, paragraph-level search, and interactive benchmark dashboard
 - **End-to-end automation** from infrastructure setup through benchmarking to visualization
-
-### Limitations & Future Work
-
-- All configurations tested on **single hardware** — multi-machine testing would show SolrCloud's true scaling benefits
-- **Index size is relatively small** (10K documents) — performance characteristics may differ with millions of documents
-- **JVM tuning was not exhaustively explored** — heap size, GC algorithm, and thread pool configuration could significantly impact Solr performance
-- **Network latency** between nodes (simulated at localhost) does not reflect real-world distributed deployments
-
----
-
-*Project completed as part of the DBMS Term Project — High QPS Text Search Engine using Apache Solr and ZooKeeper.*

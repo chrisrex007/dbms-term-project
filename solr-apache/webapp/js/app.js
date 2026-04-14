@@ -1,7 +1,3 @@
-// ============================================
-// SolrSearch — Application Logic
-// ============================================
-
 // Constants
 const SOLR_URL = '/solr/searchcore';
 const ROWS_PER_PAGE = 10;
@@ -29,9 +25,6 @@ let selectedFacets = {
     tags: []
 };
 
-// ============================================
-// Event Listeners
-// ============================================
 document.addEventListener('DOMContentLoaded', () => {
     // Search input: suggestions + keyboard navigation
     if (searchInput) {
@@ -108,9 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setupNavbarScroll();
 });
 
-// ============================================
-// Utility Functions
-// ============================================
 function debounce(func, delay) {
     let timeout;
     return function() {
@@ -139,9 +129,6 @@ function setupNavbarScroll() {
     });
 }
 
-// ============================================
-// Drag & Drop
-// ============================================
 function setupDragAndDrop() {
     const dropZone = document.getElementById('file-drop-zone');
     if (!dropZone) return;
@@ -184,9 +171,6 @@ function handleDrop(e) {
     }
 }
 
-// ============================================
-// Status Observer
-// ============================================
 function setupStatusObserver() {
     const statusElement = document.getElementById('upload-status');
     if (!statusElement) return;
@@ -212,9 +196,6 @@ function setupStatusObserver() {
     observer.observe(statusElement, { childList: true, characterData: true, subtree: true });
 }
 
-// ============================================
-// Document Upload & Indexing
-// ============================================
 function indexDocumentToSolr() {
     const form = document.getElementById('upload-document');
     const fileInput = form.querySelector('input[type="file"]');
@@ -481,9 +462,6 @@ function indexDocToSolr(doc, fileName, solr_url, statusElement) {
     });
 }
 
-// ============================================
-// Suggestions (Auto-Complete)
-// ============================================
 async function handleSuggestions() {
     const query = searchInput.value.trim();
     if (query.length < 2) {
@@ -578,9 +556,6 @@ function renderSuggestions(suggestions) {
     });
 }
 
-// ============================================
-// Search
-// ============================================
 async function performSearch() {
     // Display loading skeleton
     searchResults.innerHTML = `
@@ -660,13 +635,10 @@ async function performSearch() {
         }
     } catch (error) {
         console.error('Error performing search:', error);
-        searchResults.innerHTML = '<div class="error">❌ An error occurred while searching. Please check that Solr is running and try again.</div>';
+        searchResults.innerHTML = '<div class="error"> An error occurred while searching. Please check that Solr is running and try again.</div>';
     }
 }
 
-// ============================================
-// Render Results
-// ============================================
 function renderEnhancedResults(data) {
     if (data.grouped && data.grouped.file_name) {
         renderGroupedResults(data);
@@ -685,7 +657,7 @@ function renderGroupedResults(data) {
     }
 
     if (groups.length === 0) {
-        searchResults.innerHTML = '<div class="no-results">🔍 No results found. Try a different search query.</div>';
+        searchResults.innerHTML = '<div class="no-results">No results found. Try a different search query.</div>';
         return;
     }
 
@@ -771,7 +743,7 @@ function renderStandardResults(data) {
     }
 
     if (docs.length === 0) {
-        searchResults.innerHTML = '<div class="no-results">🔍 No results found. Try a different search query.</div>';
+        searchResults.innerHTML = '<div class="no-results"> No results found. Try a different search query.</div>';
         return;
     }
 
@@ -853,9 +825,6 @@ function renderStandardResults(data) {
     });
 }
 
-// ============================================
-// Facets
-// ============================================
 function renderFacets(facetFields) {
     if (categoryFacets && facetFields.file_name) {
         renderFacetGroup(facetFields.file_name, categoryFacets, 'file_name');
@@ -911,9 +880,6 @@ function renderFacetGroup(facetData, container, facetName) {
     });
 }
 
-// ============================================
-// Pagination
-// ============================================
 function renderPagination(totalResults) {
     pagination.innerHTML = '';
 
@@ -974,9 +940,6 @@ function createPaginationButton(text, onClick, isActive = false) {
     return button;
 }
 
-// ============================================
-// Helper Functions
-// ============================================
 function truncateText(text, maxLength) {
     if (text.length <= maxLength) {
         return text;

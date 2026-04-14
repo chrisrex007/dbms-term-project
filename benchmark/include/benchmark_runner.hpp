@@ -23,7 +23,7 @@ struct BenchmarkConfig {
 };
 
 /**
- * BenchmarkRunner - Orchestrates the full benchmark workflow.
+ * BenchmarkRunner
  *
  * For each concurrency level:
  *   1. Creates a ThreadPool of the specified size
@@ -31,20 +31,18 @@ struct BenchmarkConfig {
  *   3. Each thread repeatedly picks a query, executes it, records metrics
  *   4. After the duration expires, collects and aggregates results
  *
- * Produces JSON output compatible with the existing visualize.py script.
  */
 class BenchmarkRunner {
 public:
     explicit BenchmarkRunner(const BenchmarkConfig& config);
 
     /**
-     * Run the full benchmark suite across all concurrency levels.
      * @return Vector of metrics, one per concurrency level.
      */
     std::vector<BenchmarkMetrics> run();
 
     /**
-     * Save results to the configured output file as JSON.
+     * Save results to the configured output file as JSON compatible with visualize.py.
      */
     void save_results(const std::vector<BenchmarkMetrics>& results) const;
 
@@ -56,8 +54,8 @@ private:
 
     /**
      * Execute a single HTTP query against Solr and return the result.
-     * @param handle Pre-configured CURL handle from the connection pool.
-     * @param url    Full query URL.
+     * @param handle
+     * @param url   
      */
     RequestResult execute_query(CURL* handle, const std::string& url);
 
