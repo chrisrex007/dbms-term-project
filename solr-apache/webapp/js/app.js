@@ -3,7 +3,7 @@
 // ============================================
 
 // Constants
-const SOLR_URL = 'http://localhost:8983/solr/searchcloud_1';
+const SOLR_URL = '/solr/searchcore';
 const ROWS_PER_PAGE = 10;
 
 // DOM Elements
@@ -734,6 +734,9 @@ function renderGroupedResults(data) {
                 highlightedContent = docHighlights.content.join('... ');
             } else {
                 highlightedContent = doc.paragraph_text || doc.content || '';
+                if (Array.isArray(highlightedContent)) {
+                    highlightedContent = highlightedContent.join(' ');
+                }
                 if (highlightedContent) {
                     const regex = new RegExp('(' + escapeRegExp(currentQuery) + ')', 'gi');
                     highlightedContent = highlightedContent.replace(regex, '<mark>$1</mark>');
@@ -822,6 +825,9 @@ function renderStandardResults(data) {
                 highlightedContent = docHighlights.content.join('... ');
             } else {
                 highlightedContent = doc.paragraph_text || doc.content || '';
+                if (Array.isArray(highlightedContent)) {
+                    highlightedContent = highlightedContent.join(' ');
+                }
                 if (highlightedContent) {
                     const regex = new RegExp('(' + escapeRegExp(currentQuery) + ')', 'gi');
                     highlightedContent = highlightedContent.replace(regex, '<mark>$1</mark>');

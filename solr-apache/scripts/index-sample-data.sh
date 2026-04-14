@@ -23,7 +23,7 @@ require_command() {
 
 generate_wikipedia_abstracts_data() {
     echo "Downloading public Wikipedia dump..."
-    curl -L --fail --retry 3 -o "$WIKI_DUMP_FILE" "$WIKI_DUMP_URL"
+    # curl -L --fail --retry 3 -o "$WIKI_DUMP_FILE" "$WIKI_DUMP_URL"
 
     echo "Transforming Wikipedia pages into Solr documents..."
     python3 - "$WIKI_DUMP_FILE" "$SAMPLE_FILE" "$SAMPLE_COUNT" << 'PY'
@@ -122,6 +122,7 @@ with bz2.open(dump_path, "rb") as fh:
                 "category": ["Public Dataset", "Wikipedia"],
                 "tags": ["wikipedia", "public-dataset", "simplewiki"],
                 "last_modified": timestamp,
+                "file_name": f"{title}.txt",
             }
         )
 
