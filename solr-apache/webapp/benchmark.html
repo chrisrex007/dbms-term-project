@@ -459,6 +459,12 @@
         }
     ];
 
+    // Keep chart/table order monotonic by measured concurrency.
+    const CHART_CONFIGS = CONFIGS.map(config => ({
+        ...config,
+        data: [...config.data].sort((a, b) => a.concurrency - b.concurrency)
+    }));
+
     // Chart.js global config for dark theme
     Chart.defaults.color = '#94a3b8';
     Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
@@ -476,7 +482,7 @@
         qpsChart = new Chart(qpsCtx, {
             type: 'line',
             data: {
-                datasets: CONFIGS.map(config => ({
+                datasets: CHART_CONFIGS.map(config => ({
                     label: config.name,
                     data: config.data.map(d => ({ x: d.concurrency, y: d.qps })),
                     borderColor: config.color,
@@ -512,16 +518,16 @@
 
         // 2. Peak QPS comparison bar chart
         const compCtx = document.getElementById('comparisonChart').getContext('2d');
-        const peakValues = CONFIGS.map(c => Math.max(...c.data.map(d => d.qps)));
+        const peakValues = CHART_CONFIGS.map(c => Math.max(...c.data.map(d => d.qps)));
         comparisonChart = new Chart(compCtx, {
             type: 'bar',
             data: {
-                labels: CONFIGS.map(c => c.name),
+                labels: CHART_CONFIGS.map(c => c.name),
                 datasets: [{
                     label: 'Peak QPS',
                     data: peakValues,
-                    backgroundColor: CONFIGS.map(c => c.bgColor),
-                    borderColor: CONFIGS.map(c => c.color),
+                    backgroundColor: CHART_CONFIGS.map(c => c.bgColor),
+                    borderColor: CHART_CONFIGS.map(c => c.color),
                     borderWidth: 2,
                     borderRadius: 8,
                     barPercentage: 0.6,
@@ -549,7 +555,7 @@
 
         // 3. Standalone QPS detailed
         const saCtx = document.getElementById('standaloneQpsChart').getContext('2d');
-        const saData = CONFIGS[0].data;
+        const saData = CHART_CONFIGS[0].data;
         standaloneQpsChart = new Chart(saCtx, {
             type: 'line',
             data: {
@@ -609,11 +615,11 @@
     // Interactions
     // ============================================
     function showComparison() {
-        document.querySelectorAll('.config-tabs .config-tab').forEach((t, i) => {
-            if (i === 0) t.classList.add('active');
-            else t.classList.remove('active');
+        const tabs = document.querySelectorAll('.config-tabs')[0].querySelectorAll('.config-tab');
+        tabs.forEach((t, i) => {
+            t.classList.toggle('active', i === 0);
         });
-        qpsChart.data.datasets.forEach((ds, i) => {
+        qpsChart.data.datasets.forEach(ds => {
             ds.hidden = false;
         });
         qpsChart.update();
@@ -633,7 +639,7 @@
     function showTable(configIndex, clickedTab) {
         currentTableConfig = configIndex;
         const tbody = document.getElementById('tableBody');
-        const config = CONFIGS[configIndex];
+        const config = CHART_CONFIGS[configIndex];
 
         // Update tab active state
         if (clickedTab) {
@@ -654,5 +660,199 @@
     // Initialize on DOM load
     document.addEventListener('DOMContentLoaded', initCharts);
     </script>
+
+<!-- BEGIN AUTO BENCHMARK RESULTS -->
+
+        <section id="benchmark-results">
+            <h2>Benchmark Results from the Siege Multithreaded Client</h2>
+
+            <div class="benchmark-summary">
+                <p>The following charts display performance results from running Siege, a HTTP load testing and benchmarking utility,
+                against our Apache Solr deployment. These tests measure query performance under various concurrency levels.</p>
+
+                <h3>Performance Metrics</h3>
+                <p>Latest run point: <strong>3307.82 queries per second</strong> at concurrency <strong>80.60</strong>.</p>
+                <p>Peak observed point: <strong>3307.82 queries per second</strong> at concurrency <strong>80.60</strong>.</p>
+            </div>
+
+            <div class="visualization">
+                <h3>Concurrency vs QPS</h3>
+                <img src="images/concurrency_vs_qps.png" alt="Concurrency vs QPS Chart" class="benchmark-image">
+                <p>Points are sorted by measured concurrency before plotting to avoid backtracking lines.</p>
+            </div>
+
+            <div class="visualization">
+                <h3>QPS Across Sequential Test Runs</h3>
+                <img src="images/qps_over_time.png" alt="QPS Across Test Runs Chart" class="benchmark-image">
+                <p>This chart tracks QPS by test execution order.</p>
+            </div>
+
+            <div class="visualization">
+                <h3>Search Engine Comparison</h3>
+                <img src="images/engine_comparison.png" alt="Search Engine Comparison Chart" class="benchmark-image">
+                <p>Comparison of Apache Solr's performance against other popular search engines under similar test conditions.</p>
+            </div>
+
+            <div class="benchmark-data">
+                <h3>Detailed Results</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Concurrency</th>
+                            <th>Requests</th>
+                            <th>Elapsed Time (s)</th>
+                            <th>QPS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    
+                        <tr>
+                            <td>2026-04-14T12:28:06Z</td>
+                            <td>1.97</td>
+                            <td>413</td>
+                            <td>2.46</td>
+                            <td>167.89</td>
+                        </tr>
+        
+                        <tr>
+                            <td>2026-04-14T12:28:06Z</td>
+                            <td>2.92</td>
+                            <td>1150</td>
+                            <td>2.95</td>
+                            <td>389.83</td>
+                        </tr>
+        
+                        <tr>
+                            <td>2026-04-14T12:28:06Z</td>
+                            <td>4.92</td>
+                            <td>2310</td>
+                            <td>2.95</td>
+                            <td>783.05</td>
+                        </tr>
+        
+                        <tr>
+                            <td>2026-04-14T12:28:06Z</td>
+                            <td>6.88</td>
+                            <td>3118</td>
+                            <td>2.95</td>
+                            <td>1056.95</td>
+                        </tr>
+        
+                        <tr>
+                            <td>2026-04-14T12:28:06Z</td>
+                            <td>10.81</td>
+                            <td>5127</td>
+                            <td>2.95</td>
+                            <td>1737.97</td>
+                        </tr>
+        
+                        <tr>
+                            <td>2026-04-14T12:28:06Z</td>
+                            <td>12.78</td>
+                            <td>7725</td>
+                            <td>2.95</td>
+                            <td>2618.64</td>
+                        </tr>
+        
+                        <tr>
+                            <td>2026-04-14T12:28:06Z</td>
+                            <td>16.66</td>
+                            <td>8353</td>
+                            <td>2.96</td>
+                            <td>2821.96</td>
+                        </tr>
+        
+                        <tr>
+                            <td>2026-04-14T12:28:06Z</td>
+                            <td>18.69</td>
+                            <td>8154</td>
+                            <td>2.95</td>
+                            <td>2764.07</td>
+                        </tr>
+        
+                        <tr>
+                            <td>2026-04-14T12:28:06Z</td>
+                            <td>22.72</td>
+                            <td>7919</td>
+                            <td>2.95</td>
+                            <td>2684.41</td>
+                        </tr>
+        
+                        <tr>
+                            <td>2026-04-14T12:28:06Z</td>
+                            <td>28.64</td>
+                            <td>8721</td>
+                            <td>2.95</td>
+                            <td>2956.27</td>
+                        </tr>
+        
+                        <tr>
+                            <td>2026-04-14T12:28:06Z</td>
+                            <td>78.04</td>
+                            <td>9395</td>
+                            <td>2.95</td>
+                            <td>3184.75</td>
+                        </tr>
+        
+                        <tr>
+                            <td>2026-04-14T12:28:06Z</td>
+                            <td>80.60</td>
+                            <td>9725</td>
+                            <td>2.94</td>
+                            <td>3307.82</td>
+                        </tr>
+        
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="benchmark-insights">
+                <h3>Key Insights</h3>
+                <ul>
+                    <li>Apache Solr shows strong performance scaling as concurrency increases.</li>
+                    <li>Ordering data by concurrency produces an accurate scaling curve.</li>
+                    <li>The benchmark section is auto-refreshed on each run instead of duplicated.</li>
+                </ul>
+            </div>
+        </section>
+
+        <style>
+            #benchmark-results {
+                margin: 2rem 0;
+                padding: 1rem;
+                background-color: #f9f9f9;
+                border-radius: 5px;
+            }
+            .benchmark-image {
+                max-width: 100%;
+                height: auto;
+                margin: 1rem 0;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            .visualization {
+                margin: 2rem 0;
+            }
+            .data-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 1rem 0;
+            }
+            .data-table th, .data-table td {
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: right;
+            }
+            .data-table th {
+                background-color: #f2f2f2;
+                text-align: center;
+            }
+            .benchmark-insights {
+                margin-top: 2rem;
+            }
+        </style>
+    
+<!-- END AUTO BENCHMARK RESULTS -->
 </body>
 </html>

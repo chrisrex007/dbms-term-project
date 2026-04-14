@@ -1,6 +1,6 @@
 import os
 import json
-import numpy as np
+import re
 import matplotlib.pyplot as plt
 import pandas as pd
 from datetime import datetime
@@ -12,13 +12,7 @@ def ensure_dirs():
 
 # Function to read and process siege log data
 def process_siege_data(log_file):
-    data = {
-        'timestamp': [],
-        'concurrency': [],
-        'requests': [],
-        'elapsed_time': [],
-        'qps': []
-    }
+    rows = []
 
     try:
         with open(log_file, 'r') as f:
@@ -26,21 +20,25 @@ def process_siege_data(log_file):
 
         for entry in log_json['results']:
             timestamp = log_json.get('benchmark_timestamp', datetime.now().isoformat())
-            concurrency = entry['concurrency']
-            transactions = entry['transactions']
-            elapsed = entry['elapsed_time']
+            concurrency = float(entry.get('concurrency', 0) or 0)
+            transactions = int(entry.get('transactions', 0) or 0)
+            elapsed = float(entry.get('elapsed_time', 0) or 0)
             qps = transactions / elapsed if elapsed else 0
-
-            data['timestamp'].append(timestamp)
-            data['concurrency'].append(concurrency)
-            data['requests'].append(transactions)
-            data['elapsed_time'].append(elapsed)
-            data['qps'].append(qps)
+            rows.append({
+                'timestamp': timestamp,
+                'concurrency': concurrency,
+                'requests': transactions,
+                'elapsed_time': elapsed,
+                'qps': qps
+            })
 
     except Exception as e:
         print(f"Error reading JSON data: {e}")
 
-    return pd.DataFrame(data)
+    if not rows:
+        return pd.DataFrame(columns=['timestamp', 'concurrency', 'requests', 'elapsed_time', 'qps'])
+
+    return pd.DataFrame(rows)
 
 
 # Generate benchmark comparison data
@@ -56,10 +54,11 @@ def generate_comparison_data():
 # Create visualizations
 def create_visualizations(siege_data, comparison_data):
     ensure_dirs()
+    siege_by_concurrency = siege_data.sort_values(by='concurrency').reset_index(drop=True)
     
     # 1. Concurrency vs QPS plot
     plt.figure(figsize=(10, 6))
-    plt.plot(siege_data['concurrency'], siege_data['qps'], marker='o', linewidth=2)
+    plt.plot(siege_by_concurrency['concurrency'], siege_by_concurrency['qps'], marker='o', linewidth=2)
     plt.title('Apache Solr - Concurrency vs QPS')
     plt.xlabel('Concurrency')
     plt.ylabel('Queries Per Second (QPS)')
@@ -87,19 +86,19 @@ def create_visualizations(siege_data, comparison_data):
     
     # 3. Time series of QPS (if we have time data)
     if len(siege_data) > 1:
+        run_index = list(range(1, len(siege_data) + 1))
         plt.figure(figsize=(10, 6))
-        plt.plot(siege_data['timestamp'], siege_data['qps'], marker='o', linewidth=2)
-        plt.title('Apache Solr - QPS Over Time')
-        plt.xlabel('Time')
+        plt.plot(run_index, siege_data['qps'], marker='o', linewidth=2)
+        plt.title('Apache Solr - QPS Across Sequential Test Runs')
+        plt.xlabel('Test Run Index')
         plt.ylabel('Queries Per Second (QPS)')
-        plt.xticks(rotation=45)
         plt.grid(True)
         plt.tight_layout()
         plt.savefig('../webapp/images/qps_over_time.png')
         plt.close()
     
     # Save data as JSON for the webapp
-    siege_data_json = siege_data.to_dict(orient='records')
+    siege_data_json = siege_by_concurrency.to_dict(orient='records')
     comparison_data_json = comparison_data.to_dict(orient='records')
     
     with open('../webapp/data/siege_data.json', 'w') as f:
@@ -113,50 +112,82 @@ def create_visualizations(siege_data, comparison_data):
         'concurrency_vs_qps': 'images/concurrency_vs_qps.png',
         'engine_comparison': 'images/engine_comparison.png',
         'qps_over_time': 'images/qps_over_time.png',
-        'siege_data': siege_data.to_dict(orient='records'),
+        'siege_data': siege_data_json,
         'comparison_data': comparison_data.to_dict(orient='records')
     }
 
-# Update the HTML with visualization results
-def update_html(viz_results):
-    html_file = '../webapp/benchmark.html'
-    
-    try:
-        with open(html_file, 'r') as f:
-            content = f.read()
-            
-        # Create benchmark results section
-        benchmark_section = f"""
+
+def strip_previous_injected_sections(content):
+    # Remove any previous auto-generated section wrapped by markers.
+    content = re.sub(
+        r'\s*<!-- BEGIN AUTO BENCHMARK RESULTS -->.*?<!-- END AUTO BENCHMARK RESULTS -->\s*',
+        '\n',
+        content,
+        flags=re.DOTALL
+    )
+
+    # Remove legacy injected blocks from older script versions.
+    content = re.sub(
+        r'\s*<section id="benchmark-results">.*?</section>\s*',
+        '\n',
+        content,
+        flags=re.DOTALL
+    )
+    content = re.sub(
+        r'\s*<style>\s*#benchmark-results\s*\{.*?</style>\s*',
+        '\n',
+        content,
+        flags=re.DOTALL
+    )
+    return content
+
+
+def build_benchmark_section(viz_results):
+    rows = viz_results['siege_data']
+    if rows:
+        latest_row = rows[-1]
+        peak_row = max(rows, key=lambda row: row.get('qps', 0))
+        latest_qps = f"{latest_row['qps']:.2f}"
+        latest_concurrency = f"{latest_row['concurrency']:.2f}"
+        peak_qps = f"{peak_row['qps']:.2f}"
+        peak_concurrency = f"{peak_row['concurrency']:.2f}"
+    else:
+        latest_qps = '0.00'
+        latest_concurrency = '0.00'
+        peak_qps = '0.00'
+        peak_concurrency = '0.00'
+
+    section = f"""
         <section id="benchmark-results">
             <h2>Benchmark Results from the Siege Multithreaded Client</h2>
-            
+
             <div class="benchmark-summary">
                 <p>The following charts display performance results from running Siege, a HTTP load testing and benchmarking utility,
                 against our Apache Solr deployment. These tests measure query performance under various concurrency levels.</p>
-                
+
                 <h3>Performance Metrics</h3>
-                <p>Latest test achieved <strong>{viz_results['siege_data'][-1]['qps']:.2f} queries per second</strong> 
-                at a concurrency level of <strong>{viz_results['siege_data'][-1]['concurrency']}</strong>.</p>
+                <p>Latest run point: <strong>{latest_qps} queries per second</strong> at concurrency <strong>{latest_concurrency}</strong>.</p>
+                <p>Peak observed point: <strong>{peak_qps} queries per second</strong> at concurrency <strong>{peak_concurrency}</strong>.</p>
             </div>
-            
+
             <div class="visualization">
                 <h3>Concurrency vs QPS</h3>
                 <img src="{viz_results['concurrency_vs_qps']}" alt="Concurrency vs QPS Chart" class="benchmark-image">
-                <p>This graph shows how Solr's query performance (QPS) scales with increasing concurrency levels.</p>
+                <p>Points are sorted by measured concurrency before plotting to avoid backtracking lines.</p>
             </div>
-            
+
             <div class="visualization">
-                <h3>QPS Over Time</h3>
-                <img src="{viz_results['qps_over_time']}" alt="QPS Over Time Chart" class="benchmark-image">
-                <p>This graph tracks query performance over different test runs.</p>
+                <h3>QPS Across Sequential Test Runs</h3>
+                <img src="{viz_results['qps_over_time']}" alt="QPS Across Test Runs Chart" class="benchmark-image">
+                <p>This chart tracks QPS by test execution order.</p>
             </div>
-            
+
             <div class="visualization">
                 <h3>Search Engine Comparison</h3>
                 <img src="{viz_results['engine_comparison']}" alt="Search Engine Comparison Chart" class="benchmark-image">
                 <p>Comparison of Apache Solr's performance against other popular search engines under similar test conditions.</p>
             </div>
-            
+
             <div class="benchmark-data">
                 <h3>Detailed Results</h3>
                 <table class="data-table">
@@ -170,35 +201,34 @@ def update_html(viz_results):
                         </tr>
                     </thead>
                     <tbody>
-        """
-        
-        # Add table rows
-        for row in viz_results['siege_data']:
-            benchmark_section += f"""
+    """
+
+    for row in rows:
+        section += f"""
                         <tr>
                             <td>{row['timestamp']}</td>
-                            <td>{row['concurrency']}</td>
-                            <td>{row['requests']}</td>
-                            <td>{row['elapsed_time']}</td>
+                            <td>{row['concurrency']:.2f}</td>
+                            <td>{int(row['requests'])}</td>
+                            <td>{row['elapsed_time']:.2f}</td>
                             <td>{row['qps']:.2f}</td>
                         </tr>
-            """
-        
-        benchmark_section += """
+        """
+
+    section += """
                     </tbody>
                 </table>
             </div>
-            
+
             <div class="benchmark-insights">
                 <h3>Key Insights</h3>
                 <ul>
-                    <li>Apache Solr shows excellent performance scalability with increasing concurrency.</li>
-                    <li>Performance is comparable or better than several alternative search engines.</li>
-                    <li>QPS remains stable even under higher load, indicating good resource utilization.</li>
+                    <li>Apache Solr shows strong performance scaling as concurrency increases.</li>
+                    <li>Ordering data by concurrency produces an accurate scaling curve.</li>
+                    <li>The benchmark section is auto-refreshed on each run instead of duplicated.</li>
                 </ul>
             </div>
         </section>
-        
+
         <style>
             #benchmark-results {
                 margin: 2rem 0;
@@ -234,13 +264,31 @@ def update_html(viz_results):
                 margin-top: 2rem;
             }
         </style>
-        """
-        
+    """
+
+    return section
+
+# Update the HTML with visualization results
+def update_html(viz_results):
+    html_file = '../webapp/benchmark.html'
+    
+    try:
+        with open(html_file, 'r') as f:
+            content = f.read()
+
+        content = strip_previous_injected_sections(content)
+        benchmark_section = build_benchmark_section(viz_results)
+        wrapper = (
+            "\n<!-- BEGIN AUTO BENCHMARK RESULTS -->\n"
+            f"{benchmark_section}\n"
+            "<!-- END AUTO BENCHMARK RESULTS -->\n"
+        )
+
         # Find position to insert (before closing body tag)
         if '</body>' in content:
-            content = content.replace('</body>', f'{benchmark_section}\n</body>')
+            content = content.replace('</body>', f'{wrapper}</body>', 1)
         else:
-            content += benchmark_section
+            content += wrapper
             
         # Write updated content
         with open(html_file, 'w') as f:

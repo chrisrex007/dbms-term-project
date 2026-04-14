@@ -11,7 +11,7 @@ QUERY_ENDPOINT="/select?q=TCP"
 mkdir -p $OUTPUT_DIR
 
 # Array of concurrent users to test
-CONCURRENT_USERS=(2 3 5 7 11 13 17 19 23 29 79 83 89 97)
+CONCURRENT_USERS=(2 3 5 7 11 13 17 19 23 29 79 83)
 # Test duration in seconds
 DURATION=3
 
