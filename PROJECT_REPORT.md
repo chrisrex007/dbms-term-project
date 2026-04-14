@@ -836,7 +836,7 @@ cd solr-apache/scripts
 ### Step 2: Index Sample Data
 
 ```bash
-./index-sample-data.sh   # Generates + indexes 10,000 documents
+FORCE_REGENERATE=1 SAMPLE_COUNT=10000 ./index-sample-data.sh   # Generates + indexes 10,000 documents
 ```
 
 ### Step 3: Open Search Interface

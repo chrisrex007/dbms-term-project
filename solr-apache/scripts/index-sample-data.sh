@@ -1,5 +1,5 @@
 #!/bin/bash
-# index-sample-data.sh - Download Wikipedia abstracts and index into Solr
+# index-sample-data.sh - Download Wikipedia dump data and index into Solr
 
 set -euo pipefail
 
@@ -10,8 +10,8 @@ SOLR_URL=${SOLR_URL:-http://localhost:8983/solr/searchcore}
 SAMPLE_COUNT=${SAMPLE_COUNT:-10000}
 CHUNK_SIZE=${CHUNK_SIZE:-500}
 FORCE_REGENERATE=${FORCE_REGENERATE:-0}
-WIKI_DUMP_URL=${WIKI_DUMP_URL:-https://dumps.wikimedia.org/simplewiki/latest/simplewiki-latest-abstract.xml.gz}
-WIKI_DUMP_FILE="$DOWNLOADS_DIR/simplewiki-latest-abstract.xml.gz"
+WIKI_DUMP_URL=${WIKI_DUMP_URL:-https://dumps.wikimedia.org/simplewiki/latest/simplewiki-latest-pages-articles.xml.bz2}
+WIKI_DUMP_FILE="$DOWNLOADS_DIR/simplewiki-latest-pages-articles.xml.bz2"
 SAMPLE_FILE="$DOWNLOADS_DIR/wikipedia-abstracts-data.json"
 
 require_command() {
@@ -22,13 +22,13 @@ require_command() {
 }
 
 generate_wikipedia_abstracts_data() {
-    echo "Downloading public Wikipedia abstracts dump..."
+    echo "Downloading public Wikipedia dump..."
     curl -L --fail --retry 3 -o "$WIKI_DUMP_FILE" "$WIKI_DUMP_URL"
 
-    echo "Transforming Wikipedia abstracts into Solr documents..."
+    echo "Transforming Wikipedia pages into Solr documents..."
     python3 - "$WIKI_DUMP_FILE" "$SAMPLE_FILE" "$SAMPLE_COUNT" << 'PY'
 import datetime
-import gzip
+import bz2
 import hashlib
 import json
 import re
@@ -40,36 +40,74 @@ dump_path = sys.argv[1]
 output_path = sys.argv[2]
 max_docs = int(sys.argv[3])
 
-def get_child_text(elem, wanted_name):
-    for child in elem:
-        tag_name = child.tag.split("}")[-1]
-        if tag_name == wanted_name:
-            return (child.text or "").strip()
+def tag_name(tag):
+    return tag.split("}")[-1]
+
+def clean_wikitext(text):
+    # Remove comments, refs and templates.
+    text = re.sub(r"<!--.*?-->", " ", text, flags=re.DOTALL)
+    text = re.sub(r"<ref[^>]*>.*?</ref>", " ", text, flags=re.DOTALL)
+    text = re.sub(r"<[^>]+>", " ", text)
+    for _ in range(3):
+        text = re.sub(r"\{\{[^{}]*\}\}", " ", text)
+
+    # Convert wiki links and external links.
+    text = re.sub(r"\[\[([^\]|]+)\|([^\]]+)\]\]", r"\2", text)
+    text = re.sub(r"\[\[([^\]]+)\]\]", r"\1", text)
+    text = re.sub(r"\[[^\s\]]+\s+([^\]]+)\]", r"\1", text)
+
+    # Remove headings and leftover markup.
+    text = re.sub(r"={2,}[^=]+={2,}", " ", text)
+    text = text.replace("'''", " ").replace("''", " ")
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+def first_paragraph(text):
+    for part in re.split(r"\n\s*\n", text):
+        p = clean_wikitext(part)
+        if p and not p.upper().startswith("#REDIRECT"):
+            return p
     return ""
 
 documents = []
 timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
-with gzip.open(dump_path, "rb") as fh:
+with bz2.open(dump_path, "rb") as fh:
     parser = ET.iterparse(fh, events=("end",))
     for _, elem in parser:
-        tag_name = elem.tag.split("}")[-1]
-        if tag_name != "doc":
+        if tag_name(elem.tag) != "page":
             continue
 
-        title = get_child_text(elem, "title")
-        url = get_child_text(elem, "url")
-        abstract = get_child_text(elem, "abstract")
+        title = ""
+        namespace = ""
+        page_id = ""
+        raw_text = ""
 
-        if not title or not abstract:
+        for child in elem:
+            child_name = tag_name(child.tag)
+            if child_name == "title":
+                title = (child.text or "").strip()
+            elif child_name == "ns":
+                namespace = (child.text or "").strip()
+            elif child_name == "id" and not page_id:
+                page_id = (child.text or "").strip()
+            elif child_name == "revision":
+                for rev_child in child:
+                    if tag_name(rev_child.tag) == "text":
+                        raw_text = (rev_child.text or "")
+                        break
+
+        abstract = first_paragraph(raw_text)
+        if len(abstract) > 1200:
+            abstract = abstract[:1200].rsplit(" ", 1)[0] + "..."
+
+        # Keep only content namespace pages.
+        if namespace != "0" or not title or not abstract:
             elem.clear()
             continue
 
-        curid_match = re.search(r"curid=(\\d+)", url)
-        if curid_match:
-            doc_id = "wiki_" + curid_match.group(1)
-        else:
-            doc_id = "wiki_" + hashlib.sha1((url or title).encode("utf-8")).hexdigest()[:16]
+        doc_id = "wiki_" + (page_id if page_id else hashlib.sha1(title.encode("utf-8")).hexdigest()[:16])
+        url = "https://simple.wikipedia.org/wiki/" + urllib.parse.quote(title.replace(" ", "_"))
 
         domain = urllib.parse.urlparse(url).netloc or "wikipedia.org"
 
@@ -81,8 +119,8 @@ with gzip.open(dump_path, "rb") as fh:
                 "url": url,
                 "domain": domain,
                 "author": "Wikipedia",
-                "category": ["Public Dataset", "Wikipedia Abstract"],
-                "tags": ["wikipedia", "abstract", "public-dataset"],
+                "category": ["Public Dataset", "Wikipedia"],
+                "tags": ["wikipedia", "public-dataset", "simplewiki"],
                 "last_modified": timestamp,
             }
         )
@@ -98,7 +136,7 @@ if not documents:
 with open(output_path, "w", encoding="utf-8") as out:
     json.dump(documents, out, ensure_ascii=False)
 
-print(f"Wrote {len(documents)} Wikipedia abstract documents to {output_path}")
+print(f"Wrote {len(documents)} Wikipedia documents to {output_path}")
 PY
 }
 
@@ -184,5 +222,5 @@ done
 echo "Optimizing the index..."
 curl --fail -X POST "$SOLR_URL/update?optimize=true&waitFlush=true" > /dev/null
 
-echo "Indexing complete! Indexed $ACTUAL_COUNT documents from Wikipedia abstracts."
+echo "Indexing complete! Indexed $ACTUAL_COUNT documents from Wikipedia dump."
 echo "You can now run the benchmark scripts to test performance."
