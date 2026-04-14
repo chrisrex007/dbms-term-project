@@ -1,11 +1,10 @@
 #!/bin/bash
-# setup-solr.sh - Script to set up Solr and ZooKeeper
 
 # Configuration variables
 SOLR_VERSION="9.3.0"
 ZOOKEEPER_VERSION="3.8.1"
 NUM_SOLR_NODES=2
-JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"  # Adjust as needed
+JAVA_HOME="/usr/lib/jvm/java-21-openjdk-amd64"  # Adjust as needed
 BASE_DIR=$(pwd)
 
 # Check for Java
@@ -59,13 +58,5 @@ for i in $(seq 1 $NUM_SOLR_NODES); do
     PORT=$((8983 + $i - 1))
     echo "solr.port=$PORT" > $NODE_DIR/server/etc/jetty.properties
 done
-
-# Create core configuration for ZooKeeper
-echo "Creating core configuration in ZooKeeper..."
-$BASE_DIR/solr-nodes/node1/bin/solr start -c -p 8983 -z localhost:2181
-
-# Create the collection
-echo "Creating Solr collection..."
-$BASE_DIR/solr-nodes/node1/bin/solr create_collection -c searchcore -d $BASE_DIR/solr-config/cores/searchcore/conf -shards 2 -replicationFactor 1
 
 echo "Setup complete! Start ZooKeeper and Solr nodes to begin."

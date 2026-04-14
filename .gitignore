@@ -33,6 +33,7 @@ solr-apache/scripts/downloads/
 solr-apache/scripts/solr-nodes/
 solr-apache/scripts/zookeeper/
 solr-apache/searchcores/data/
+solr-apache/scripts/data/
 
 # ========================
 # Benchmark results (regenerable)

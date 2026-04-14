@@ -19,6 +19,15 @@ for i in $(seq 1 2); do
     $NODE_DIR/bin/solr start -c -p $PORT -z localhost:2181
 done
 
+echo "Waiting for Solr to stabilize..."
+sleep 10
+
+echo "Creating collection..."
+$BASE_DIR/solr-nodes/node1/bin/solr create_collection \
+  -c searchcore \
+  -shards 2 \
+  -replicationFactor 1
+
 echo "All services started!"
 echo "Solr node 1: http://localhost:8983/solr/"
 echo "Solr node 2: http://localhost:8984/solr/"
