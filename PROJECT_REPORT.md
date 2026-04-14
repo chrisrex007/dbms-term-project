@@ -886,6 +886,26 @@ Open in browser:
 file:///path/to/distributed-search-engine/solr-apache/webapp/benchmark.html
 ```
 
+
+# cleanup: 
+
+## Safely shutdown the UI backend
+```
+fuser -k 9090/tcp
+```
+
+## Broadcast the shutdown signal to the entire Solr and Jetty network
+```
+/home/chrisrex/distributed-search-engine/solr-apache/scripts/solr-nodes/node1/bin/solr stop -all
+```
+
+## Terminate the ZooKeeper orchestrators
+```
+cd /home/chrisrex/distributed-search-engine/solr-apache/scripts/zookeeper
+./bin/zkServer.sh stop conf/zoo1.cfg
+./bin/zkServer.sh stop conf/zoo2.cfg
+./bin/zkServer.sh stop conf/zoo3.cfg
+```
 ---
 
 ## 13. Conclusions & Key Takeaways
