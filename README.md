@@ -1,4 +1,3 @@
-  public:: true
 - # Design and Implementation of a Scalable Text Search Engine Using Apache Solr
 - ## Abstract
   
@@ -129,8 +128,6 @@
 - ## 5.Architecture
   
   The architecture of our search engine implementation revolves around a distributed SolrCloud cluster coordinated by ZooKeeper, designed to handle both indexing operations and high-volume search requests efficiently. The system follows a modular design that separates the core search functionality from administrative components while maintaining tight integration between them. This architecture enables horizontal scaling to accommodate growing data volumes and query loads without service disruption, with performance validation conducted through rigorous load testing using the Siege benchmarking tool.  
-  
-  ![image.png](assets/image_1745844625115_0.png)  
   
   At the core of the system lies the SolrCloud cluster, which provides distributed indexing and search capabilities across multiple nodes. Each node in the cluster participates in both indexing and query processing, with ZooKeeper managing the distribution of workloads and maintaining cluster state. The index is partitioned into shards that are distributed across nodes, allowing the system to scale beyond the resource limitations of individual machines.  
   
@@ -450,7 +447,6 @@
 	- Query throughput
 	- Indexing rates
 	- Visualization capabilities
-- ![image.png](assets/image_1745833271054_0.png)
 -
 - The interface incorporates historical Siege benchmark results for longitudinal performance analysis, enabling administrators to track system capacity over time and plan for scaling needs. Alerting configurations notify operators of emerging issues like growing query latencies or resource constraints. This comprehensive monitoring solution provides the operational visibility needed to maintain high service levels while supporting administrative tasks through an intuitive web interface.
 - ### 6.5 Search Interface Implementation
@@ -464,5 +460,4 @@
 	- Auto-suggest functionality
 - The manager executes queries asynchronously, passing JSON-formatted parameters to Solr and distributing responses to widgets for rendering. Result display incorporates highlighting to show matched terms in context, while faceted navigation allows intuitive result filtering by categories and tags. The auto-suggest feature builds on Solr's suggest component to offer query completions with typo tolerance.
 -
-- ![image.png](assets/image_1745836671405_0.png)
 # dbms-term-project
