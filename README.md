@@ -178,6 +178,9 @@ Key settings:
 ### 5.4 Starting Services (`start-services.sh`)
 Launches zookeeper ensemble and Solr nodes
 
+### 5.5 Stopping Services (`stop-services.sh`)
+Stops the Solr nodes and ZooKeeper ensemble (reverse of startup). Safe to run even if some services are already stopped.
+
 ---
 
 ## 6. Schema Design & Data Pipeline
@@ -699,6 +702,7 @@ distributed-search-engine/
 │       ├── env.sh                         ← Shared config (collection, ports, URLs)
 │       ├── setup-solr.sh                  ← Downloads + configures Solr & ZK
 │       ├── start-services.sh              ← Starts ZK + Solr nodes, uploads configset
+│       ├── stop-services.sh               ← Stops Solr nodes + ZK ensemble
 │       ├── index-sample-data.sh           ← Generates + indexes 10K docs
 │       ├── run-siege-benchmark.sh         ← Automated siege benchmarking
 │       ├── finalize-benchmark.sh          ← Full benchmark + report
