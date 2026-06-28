@@ -58,6 +58,21 @@
         );
         border-radius: 2px;
       }
+      .section-desc {
+        color: var(--color-text-secondary);
+        font-size: 0.95rem;
+        line-height: 1.6;
+        max-width: 880px;
+        margin: -8px 0 24px;
+      }
+      .section-desc code {
+        background: var(--color-bg-glass);
+        border: 1px solid var(--color-border);
+        border-radius: 4px;
+        padding: 1px 6px;
+        font-size: 0.85em;
+        color: var(--color-primary-light);
+      }
       .stats-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -281,7 +296,8 @@
     <!-- Header -->
     <div class="dashboard-header">
       <h1>Benchmark Dashboard</h1>
-      <p></p>
+      <p>Apache Solr 9.3.0 throughput &amp; latency under load — measured by
+        two independent clients on identical hardware.</p>
     </div>
 
     <div class="dashboard">
@@ -289,55 +305,74 @@
       <h2 class="section-title">System Overview</h2>
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-value">8</div>
+          <div class="stat-value">22</div>
           <div class="stat-label">CPU Cores</div>
-          <div class="stat-detail">Intel Xeon E5-2680 v3</div>
+          <div class="stat-detail">Benchmark host</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">32GB</div>
+          <div class="stat-value">15GB</div>
           <div class="stat-label">RAM</div>
-          <div class="stat-detail">DDR4-2133 MHz</div>
+          <div class="stat-detail">Available memory</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">1TB</div>
-          <div class="stat-label">Storage</div>
-          <div class="stat-detail">NVMe SSD</div>
+          <div class="stat-value">5,000</div>
+          <div class="stat-label">Indexed Docs</div>
+          <div class="stat-detail">Simple-English Wikipedia</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">9.4</div>
+          <div class="stat-value">9.3</div>
           <div class="stat-label">Solr Version</div>
-          <div class="stat-detail">Lucene 9.8.0</div>
+          <div class="stat-detail">Lucene 9.x · ZooKeeper 3.8.1</div>
         </div>
       </div>
 
-      <!-- Peak Performance -->
-      <h2 class="section-title">Peak Performance Summary</h2>
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-value">4,708</div>
-          <div class="stat-label">Peak QPS</div>
-          <div class="stat-detail">Standalone @ 10.64 concurrency</div>
+      <!-- ===================== Custom C++ Client ===================== -->
+      <h2 class="section-title">Custom C++ Multithreaded Client</h2>
+      <p class="section-desc">
+        A standalone <strong>C++17</strong> load-test client — reused
+        <code>libcurl</code> connection pool, raw <code>std::thread</code>
+        workers, and measured concurrency via Little's Law
+        (<code>L = &lambda; &times; W</code>). Run live against the
+        <strong>standalone</strong> Solr deployment, it captures full latency
+        percentiles alongside throughput.
+      </p>
+      <div class="stats-grid" id="cppStats"></div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <h3>QPS vs Concurrency</h3>
+          <canvas id="cppQpsChart"></canvas>
         </div>
-        <div class="stat-card">
-          <div class="stat-value">1,336</div>
-          <div class="stat-label">SolrCloud 1-Node QPS</div>
-          <div class="stat-detail">2 shards · 2 replicas · 1 ZK</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value">2,946</div>
-          <div class="stat-label">SolrCloud 3-Node QPS</div>
-          <div class="stat-detail">3 shards · 4 replicas · 1 ZK</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value">800</div>
-          <div class="stat-label">3-Node + 3-ZK QPS</div>
-          <div class="stat-detail">3 shards · 4 replicas · 3 ZK</div>
+        <div class="chart-card">
+          <h3>Latency Percentiles vs Concurrency</h3>
+          <canvas id="cppLatencyChart"></canvas>
         </div>
       </div>
+      <div class="data-table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Concurrency</th>
+              <th class="num">Requests</th>
+              <th class="num">QPS</th>
+              <th class="num">p50 (ms)</th>
+              <th class="num">p95 (ms)</th>
+              <th class="num">p99 (ms)</th>
+              <th class="num">Avail %</th>
+            </tr>
+          </thead>
+          <tbody id="cppTableBody"></tbody>
+        </table>
+      </div>
 
-      <!-- Configuration Comparison Charts -->
-      <h2 class="section-title">Configuration Comparison</h2>
-
+      <!-- ===================== Siege Client ===================== -->
+      <h2 class="section-title">Siege Client</h2>
+      <p class="section-desc">
+        The <strong>siege</strong> HTTP load-tester across four Solr
+        deployments — standalone plus three SolrCloud topologies. It emits
+        the same siege-compatible JSON schema as the C++ client, enabling a
+        head-to-head deployment comparison on identical hardware.
+      </p>
+      <div class="stats-grid" id="siegeStats"></div>
       <div class="config-tabs">
         <button class="config-tab active" onclick="showComparison()">
           All Configs
@@ -355,34 +390,16 @@
           <span class="config-badge cloud3n3z">4</span> 3-Node / 3 ZK
         </button>
       </div>
-
       <div class="chart-grid">
         <div class="chart-card">
           <h3>QPS vs Concurrency</h3>
           <canvas id="qpsChart"></canvas>
         </div>
         <div class="chart-card">
-          <h3>QPS Comparison (Peak Values)</h3>
+          <h3>Peak QPS by Configuration</h3>
           <canvas id="comparisonChart"></canvas>
         </div>
       </div>
-
-      <!-- Standalone Detailed View -->
-      <h2 class="section-title">Standalone Configuration — Detailed Results</h2>
-      <div class="chart-grid">
-        <div class="chart-card">
-          <h3>QPS Scaling Curve</h3>
-          <canvas id="standaloneQpsChart"></canvas>
-        </div>
-        <div class="chart-card">
-          <h3>Requests per Test Run</h3>
-          <canvas id="standaloneRequestsChart"></canvas>
-        </div>
-      </div>
-
-      <!-- Data Tables -->
-      <h2 class="section-title">Raw Benchmark Data</h2>
-
       <div class="config-tabs" id="table-tabs">
         <button class="config-tab active" onclick="showTable(0, this)">
           Standalone
@@ -397,7 +414,6 @@
           3-Node / 3 ZK
         </button>
       </div>
-
       <div class="data-table-wrapper">
         <table class="data-table" id="benchmarkTable">
           <thead>
@@ -737,27 +753,336 @@
       ];
       /* CONFIGS_DATA_END */
 
+      // Custom C++ client data — generated from data/cpp_data.json by sync_dashboard_data.py
+      /* CPP_DATA_START */
+      const CPP_RESULTS = {
+        "_comment": "Measured QPS + latency benchmark data from the custom C++ multithreaded client (single source of truth for the dashboard's C++ section, mirroring configs.json for siege). Captured on a 22-core host (15 GB RAM) with Apache Solr 9.3.0 + ZooKeeper 3.8.1, Java 17, ~5000 Simple-English-Wikipedia docs, standalone deployment, default query terms, 8s per concurrency level. Raw run output lives in scripts/benchmark_results/cpp_results.json; regenerate the dashboard's inline CPP_RESULTS with sync_dashboard_data.py.",
+        "benchmark_tool": "cpp_multithreaded_client",
+        "name": "Standalone (C++ client)",
+        "color": "#22c55e",
+        "bgColor": "rgba(34,197,94,0.15)",
+        "data": [
+          {
+            "concurrency": 2.0,
+            "requests": 1222,
+            "elapsed": 8.01,
+            "qps": 152.63,
+            "p50": 11.24,
+            "p95": 25.63,
+            "p99": 38.83,
+            "availability": 100.0
+          },
+          {
+            "concurrency": 2.99,
+            "requests": 3047,
+            "elapsed": 8.01,
+            "qps": 380.59,
+            "p50": 7.29,
+            "p95": 14.01,
+            "p99": 20.09,
+            "availability": 100.0
+          },
+          {
+            "concurrency": 4.99,
+            "requests": 7024,
+            "elapsed": 8.01,
+            "qps": 877.36,
+            "p50": 5.43,
+            "p95": 8.82,
+            "p99": 11.46,
+            "availability": 100.0
+          },
+          {
+            "concurrency": 6.98,
+            "requests": 8539,
+            "elapsed": 8.01,
+            "qps": 1066.63,
+            "p50": 6.18,
+            "p95": 10.49,
+            "p99": 13.36,
+            "availability": 100.0
+          },
+          {
+            "concurrency": 10.98,
+            "requests": 9947,
+            "elapsed": 8.01,
+            "qps": 1241.76,
+            "p50": 8.25,
+            "p95": 13.98,
+            "p99": 18.04,
+            "availability": 100.0
+          },
+          {
+            "concurrency": 12.97,
+            "requests": 10204,
+            "elapsed": 8.02,
+            "qps": 1272.82,
+            "p50": 9.65,
+            "p95": 15.85,
+            "p99": 19.8,
+            "availability": 100.0
+          },
+          {
+            "concurrency": 16.96,
+            "requests": 11135,
+            "elapsed": 8.01,
+            "qps": 1389.91,
+            "p50": 11.58,
+            "p95": 18.79,
+            "p99": 22.76,
+            "availability": 100.0
+          },
+          {
+            "concurrency": 18.96,
+            "requests": 10895,
+            "elapsed": 8.01,
+            "qps": 1359.65,
+            "p50": 13.15,
+            "p95": 21.87,
+            "p99": 26.72,
+            "availability": 100.0
+          },
+          {
+            "concurrency": 22.94,
+            "requests": 10813,
+            "elapsed": 8.02,
+            "qps": 1348.15,
+            "p50": 16.12,
+            "p95": 26.62,
+            "p99": 32.86,
+            "availability": 100.0
+          },
+          {
+            "concurrency": 28.94,
+            "requests": 11706,
+            "elapsed": 8.02,
+            "qps": 1459.47,
+            "p50": 18.95,
+            "p95": 30.45,
+            "p99": 36.85,
+            "availability": 100.0
+          },
+          {
+            "concurrency": 78.7,
+            "requests": 12853,
+            "elapsed": 8.07,
+            "qps": 1593.56,
+            "p50": 47.74,
+            "p95": 72.35,
+            "p99": 88.5,
+            "availability": 100.0
+          },
+          {
+            "concurrency": 82.73,
+            "requests": 12673,
+            "elapsed": 8.04,
+            "qps": 1575.41,
+            "p50": 50.8,
+            "p95": 77.8,
+            "p99": 94.24,
+            "availability": 100.0
+          }
+        ]
+      };
+      /* CPP_DATA_END */
+
       // Keep chart/table order monotonic by measured concurrency.
       const CHART_CONFIGS = CONFIGS.map((config) => ({
         ...config,
         data: [...config.data].sort((a, b) => a.concurrency - b.concurrency),
       }));
+      const CPP_DATA = [...CPP_RESULTS.data].sort(
+        (a, b) => a.concurrency - b.concurrency,
+      );
 
       // Chart.js global config for dark theme
       Chart.defaults.color = "#94a3b8";
       Chart.defaults.borderColor = "rgba(255,255,255,0.06)";
       Chart.defaults.font.family = "Inter, sans-serif";
 
-      let qpsChart,
-        comparisonChart,
-        standaloneQpsChart,
-        standaloneRequestsChart;
+      const TOOLTIP_STYLE = {
+        backgroundColor: "rgba(15,15,26,0.95)",
+        borderColor: "rgba(255,255,255,0.1)",
+        borderWidth: 1,
+        padding: 12,
+      };
+      const SIEGE_LABELS = [
+        "Standalone",
+        "1-Node Cloud",
+        "3-Node / 1 ZK",
+        "3-Node / 3 ZK",
+      ];
+
+      let qpsChart, comparisonChart, cppQpsChart, cppLatencyChart;
       let currentTableConfig = 0;
 
+      // Render a row of summary stat cards into a container.
+      function renderStats(containerId, cards) {
+        document.getElementById(containerId).innerHTML = cards
+          .map(
+            (c) => `
+            <div class="stat-card">
+              <div class="stat-value">${c.value}</div>
+              <div class="stat-label">${c.label}</div>
+              <div class="stat-detail">${c.detail}</div>
+            </div>`,
+          )
+          .join("");
+      }
+
       function initCharts() {
-        // 1. Combined QPS chart
-        const qpsCtx = document.getElementById("qpsChart").getContext("2d");
-        qpsChart = new Chart(qpsCtx, {
+        renderCppSection();
+        renderSiegeSection();
+      }
+
+      // ---------------- Custom C++ client ----------------
+      function renderCppSection() {
+        const peak = CPP_DATA.reduce((a, b) => (b.qps > a.qps ? b : a));
+        const fastest = CPP_DATA.reduce((a, b) => (b.p50 < a.p50 ? b : a));
+        const minAvail = Math.min(...CPP_DATA.map((d) => d.availability));
+        renderStats("cppStats", [
+          {
+            value: Math.round(peak.qps).toLocaleString(),
+            label: "Peak QPS",
+            detail: `@ ${peak.concurrency.toFixed(1)} concurrency`,
+          },
+          {
+            value: fastest.p50.toFixed(1) + " ms",
+            label: "Best p50 Latency",
+            detail: `@ ${fastest.concurrency.toFixed(1)} concurrency`,
+          },
+          {
+            value: Math.round(Math.max(...CPP_DATA.map((d) => d.concurrency))),
+            label: "Max Concurrency",
+            detail: "threads sustained",
+          },
+          {
+            value: minAvail.toFixed(0) + "%",
+            label: "Availability",
+            detail: "across all levels",
+          },
+        ]);
+
+        cppQpsChart = new Chart(document.getElementById("cppQpsChart"), {
+          type: "line",
+          data: {
+            datasets: [
+              {
+                label: "QPS",
+                data: CPP_DATA.map((d) => ({ x: d.concurrency, y: d.qps })),
+                borderColor: CPP_RESULTS.color,
+                backgroundColor: CPP_RESULTS.bgColor,
+                borderWidth: 2.5,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                tension: 0.3,
+                fill: true,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            interaction: { mode: "nearest", intersect: false },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                ...TOOLTIP_STYLE,
+                callbacks: { label: (c) => `${c.parsed.y.toFixed(0)} QPS` },
+              },
+            },
+            scales: {
+              x: {
+                type: "linear",
+                title: { display: true, text: "Measured Concurrency" },
+                grid: { color: "rgba(255,255,255,0.04)" },
+              },
+              y: {
+                title: { display: true, text: "Queries Per Second (QPS)" },
+                grid: { color: "rgba(255,255,255,0.04)" },
+                beginAtZero: true,
+              },
+            },
+          },
+        });
+
+        const pctColors = { p50: "#22c55e", p95: "#f59e0b", p99: "#f87171" };
+        cppLatencyChart = new Chart(
+          document.getElementById("cppLatencyChart"),
+          {
+            type: "line",
+            data: {
+              datasets: ["p50", "p95", "p99"].map((k) => ({
+                label: k,
+                data: CPP_DATA.map((d) => ({ x: d.concurrency, y: d[k] })),
+                borderColor: pctColors[k],
+                backgroundColor: pctColors[k],
+                borderWidth: 2,
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                tension: 0.3,
+                fill: false,
+              })),
+            },
+            options: {
+              responsive: true,
+              interaction: { mode: "nearest", intersect: false },
+              plugins: {
+                legend: {
+                  position: "bottom",
+                  labels: { usePointStyle: true, padding: 16 },
+                },
+                tooltip: {
+                  ...TOOLTIP_STYLE,
+                  callbacks: {
+                    label: (c) => `${c.dataset.label}: ${c.parsed.y.toFixed(1)} ms`,
+                  },
+                },
+              },
+              scales: {
+                x: {
+                  type: "linear",
+                  title: { display: true, text: "Measured Concurrency" },
+                  grid: { color: "rgba(255,255,255,0.04)" },
+                },
+                y: {
+                  title: { display: true, text: "Latency (ms)" },
+                  grid: { color: "rgba(255,255,255,0.04)" },
+                  beginAtZero: true,
+                },
+              },
+            },
+          },
+        );
+
+        document.getElementById("cppTableBody").innerHTML = CPP_DATA.map(
+          (d) => `
+            <tr>
+              <td>${d.concurrency.toFixed(2)}</td>
+              <td class="num">${d.requests.toLocaleString()}</td>
+              <td class="num" style="font-weight:600;color:${CPP_RESULTS.color}">${d.qps.toFixed(2)}</td>
+              <td class="num">${d.p50.toFixed(2)}</td>
+              <td class="num">${d.p95.toFixed(2)}</td>
+              <td class="num">${d.p99.toFixed(2)}</td>
+              <td class="num">${d.availability.toFixed(1)}</td>
+            </tr>`,
+        ).join("");
+      }
+
+      // ---------------- Siege client ----------------
+      function renderSiegeSection() {
+        renderStats(
+          "siegeStats",
+          CHART_CONFIGS.map((c, i) => {
+            const peak = c.data.reduce((a, b) => (b.qps > a.qps ? b : a));
+            return {
+              value: Math.round(peak.qps).toLocaleString(),
+              label: SIEGE_LABELS[i] || c.name,
+              detail: `peak @ ${peak.concurrency.toFixed(1)} concurrency`,
+            };
+          }),
+        );
+
+        qpsChart = new Chart(document.getElementById("qpsChart"), {
           type: "line",
           data: {
             datasets: CHART_CONFIGS.map((config) => ({
@@ -781,13 +1106,9 @@
                 labels: { usePointStyle: true, padding: 16 },
               },
               tooltip: {
-                backgroundColor: "rgba(15,15,26,0.95)",
-                borderColor: "rgba(255,255,255,0.1)",
-                borderWidth: 1,
-                padding: 12,
+                ...TOOLTIP_STYLE,
                 callbacks: {
-                  label: (ctx) =>
-                    `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(0)} QPS`,
+                  label: (c) => `${c.dataset.label}: ${c.parsed.y.toFixed(0)} QPS`,
                 },
               },
             },
@@ -800,134 +1121,54 @@
               y: {
                 title: { display: true, text: "Queries Per Second (QPS)" },
                 grid: { color: "rgba(255,255,255,0.04)" },
+                beginAtZero: true,
               },
             },
           },
         });
 
-        // 2. Peak QPS comparison bar chart
-        const compCtx = document
-          .getElementById("comparisonChart")
-          .getContext("2d");
         const peakValues = CHART_CONFIGS.map((c) =>
           Math.max(...c.data.map((d) => d.qps)),
         );
-        comparisonChart = new Chart(compCtx, {
-          type: "bar",
-          data: {
-            labels: CHART_CONFIGS.map((c) => c.name),
-            datasets: [
-              {
-                label: "Peak QPS",
-                data: peakValues,
-                backgroundColor: CHART_CONFIGS.map((c) => c.bgColor),
-                borderColor: CHART_CONFIGS.map((c) => c.color),
-                borderWidth: 2,
-                borderRadius: 8,
-                barPercentage: 0.6,
+        comparisonChart = new Chart(
+          document.getElementById("comparisonChart"),
+          {
+            type: "bar",
+            data: {
+              labels: SIEGE_LABELS,
+              datasets: [
+                {
+                  label: "Peak QPS",
+                  data: peakValues,
+                  backgroundColor: CHART_CONFIGS.map((c) => c.bgColor),
+                  borderColor: CHART_CONFIGS.map((c) => c.color),
+                  borderWidth: 2,
+                  borderRadius: 8,
+                  barPercentage: 0.6,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  ...TOOLTIP_STYLE,
+                  callbacks: { label: (c) => `Peak: ${c.parsed.y.toFixed(0)} QPS` },
+                },
               },
-            ],
-          },
-          options: {
-            responsive: true,
-            plugins: {
-              legend: { display: false },
-              tooltip: {
-                backgroundColor: "rgba(15,15,26,0.95)",
-                borderColor: "rgba(255,255,255,0.1)",
-                borderWidth: 1,
-                callbacks: {
-                  label: (ctx) => `Peak: ${ctx.parsed.y.toFixed(0)} QPS`,
+              scales: {
+                x: { grid: { display: false } },
+                y: {
+                  title: { display: true, text: "QPS" },
+                  grid: { color: "rgba(255,255,255,0.04)" },
+                  beginAtZero: true,
                 },
               },
             },
-            scales: {
-              x: { grid: { display: false } },
-              y: {
-                title: { display: true, text: "QPS" },
-                grid: { color: "rgba(255,255,255,0.04)" },
-              },
-            },
           },
-        });
+        );
 
-        // 3. Standalone QPS detailed
-        const saCtx = document
-          .getElementById("standaloneQpsChart")
-          .getContext("2d");
-        const saData = CHART_CONFIGS[0].data;
-        standaloneQpsChart = new Chart(saCtx, {
-          type: "line",
-          data: {
-            labels: saData.map((d) => d.concurrency.toFixed(1)),
-            datasets: [
-              {
-                label: "QPS",
-                data: saData.map((d) => d.qps),
-                borderColor: "#22c55e",
-                backgroundColor: "rgba(34,197,94,0.1)",
-                borderWidth: 2.5,
-                pointRadius: 4,
-                pointBackgroundColor: "#22c55e",
-                tension: 0.3,
-                fill: true,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            plugins: { legend: { display: false } },
-            scales: {
-              x: {
-                title: { display: true, text: "Concurrency" },
-                grid: { color: "rgba(255,255,255,0.04)" },
-              },
-              y: {
-                title: { display: true, text: "QPS" },
-                grid: { color: "rgba(255,255,255,0.04)" },
-                beginAtZero: true,
-              },
-            },
-          },
-        });
-
-        // 4. Standalone requests bar chart
-        const srCtx = document
-          .getElementById("standaloneRequestsChart")
-          .getContext("2d");
-        standaloneRequestsChart = new Chart(srCtx, {
-          type: "bar",
-          data: {
-            labels: saData.map((d) => d.concurrency.toFixed(1)),
-            datasets: [
-              {
-                label: "Total Requests",
-                data: saData.map((d) => d.requests),
-                backgroundColor: "rgba(99,102,241,0.3)",
-                borderColor: "#6366f1",
-                borderWidth: 1.5,
-                borderRadius: 4,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            plugins: { legend: { display: false } },
-            scales: {
-              x: {
-                title: { display: true, text: "Concurrency" },
-                grid: { display: false },
-              },
-              y: {
-                title: { display: true, text: "Requests in ~10s" },
-                grid: { color: "rgba(255,255,255,0.04)" },
-                beginAtZero: true,
-              },
-            },
-          },
-        });
-
-        // Initialize table
         showTable(0);
       }
 
@@ -935,9 +1176,7 @@
         const tabs = document
           .querySelectorAll(".config-tabs")[0]
           .querySelectorAll(".config-tab");
-        tabs.forEach((t, i) => {
-          t.classList.toggle("active", i === 0);
-        });
+        tabs.forEach((t, i) => t.classList.toggle("active", i === 0));
         qpsChart.data.datasets.forEach((ds) => {
           ds.hidden = false;
         });
@@ -948,9 +1187,7 @@
         const tabs = document
           .querySelectorAll(".config-tabs")[0]
           .querySelectorAll(".config-tab");
-        tabs.forEach((t, i) => {
-          t.classList.toggle("active", i === index + 1);
-        });
+        tabs.forEach((t, i) => t.classList.toggle("active", i === index + 1));
         qpsChart.data.datasets.forEach((ds, i) => {
           ds.hidden = i !== index;
         });
@@ -961,8 +1198,6 @@
         currentTableConfig = configIndex;
         const tbody = document.getElementById("tableBody");
         const config = CHART_CONFIGS[configIndex];
-
-        // Update tab active state
         if (clickedTab) {
           document
             .getElementById("table-tabs")
@@ -970,22 +1205,19 @@
             .forEach((t) => t.classList.remove("active"));
           clickedTab.classList.add("active");
         }
-
         tbody.innerHTML = config.data
           .map(
             (d) => `
             <tr>
-                <td>${d.concurrency.toFixed(2)}</td>
-                <td class="num">${d.requests.toLocaleString()}</td>
-                <td class="num">${d.elapsed.toFixed(2)}</td>
-                <td class="num" style="font-weight:600;color:${config.color}">${d.qps.toFixed(2)}</td>
-            </tr>
-        `,
+              <td>${d.concurrency.toFixed(2)}</td>
+              <td class="num">${d.requests.toLocaleString()}</td>
+              <td class="num">${d.elapsed.toFixed(2)}</td>
+              <td class="num" style="font-weight:600;color:${config.color}">${d.qps.toFixed(2)}</td>
+            </tr>`,
           )
           .join("");
       }
 
-      // Initialize on DOM load
       document.addEventListener("DOMContentLoaded", initCharts);
     </script>
 
