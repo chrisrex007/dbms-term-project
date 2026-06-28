@@ -124,7 +124,7 @@ This introduces network overhead and coordination latency — which is why SolrC
 | **libcurl** | 8.5.0 | HTTP connection pooling for C++ client |
 | **Python 3** | 3.x | Visualization scripts (matplotlib) |
 | **Chart.js** | 4.x | Interactive web-based benchmark charts |
-| **Java** | 11+ | Solr runtime (JVM) |
+| **Java** | 11 or 17 | Solr runtime (JVM) — not 24+ |
 | **CMake** | 3.14+ | C++ build system |
 
 ---
@@ -135,10 +135,12 @@ This introduces network overhead and coordination latency — which is why SolrC
 
 ```bash
 sudo apt-get install build-essential cmake libcurl4-openssl-dev   # C++ client
-sudo apt-get install default-jdk                                   # Java 11+
+sudo apt-get install openjdk-17-jdk-headless                       # Java 17 (see note)
 sudo apt-get install siege                                         # HTTP benchmarking
 pip install matplotlib numpy pandas                                # Visualization
 ```
+
+> **Java version:** use **Java 11 or 17**. Solr 9.3.0 relies on the Java SecurityManager, which was removed in Java 24, so it will **not** start on Java 24+ (the distro `default-jdk` may now pull Java 21/25). If you have multiple JDKs installed, point the scripts at the right one with `export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64` before running them (otherwise `setup-solr.sh` derives `JAVA_HOME` from whichever `java` is on your `PATH`).
 
 ### 5.2 Solr & ZooKeeper Setup (`setup-solr.sh`)
 
@@ -756,12 +758,14 @@ python3 webapp/server.py
 
 ### Step 4: Open Search Interface
 
-Open in browser:
+The search UI talks to Solr through the `server.py` proxy (Step 3), so open it **via
+that server**, not as a `file://` path (a `file://` page cannot reach Solr):
+
 ```
-file:///path/to/distributed-search-engine/solr-apache/webapp/index.html
+http://localhost:9090/index.html
 ```
 
-Or with Solr running, access Solr Admin:
+Or, with Solr running, access the Solr Admin UI directly:
 ```
 http://localhost:8983/solr/
 ```
@@ -799,9 +803,9 @@ run `python3 sync_dashboard_data.py` to regenerate the dashboard's inline data.
 
 ### Step 8: View Benchmark Dashboard
 
-Open in browser:
+Open in browser (served by the proxy from Step 3):
 ```
-file:///path/to/distributed-search-engine/solr-apache/webapp/benchmark.html
+http://localhost:9090/benchmark.html
 ```
 
 
