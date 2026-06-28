@@ -1,58 +1,77 @@
 #!/bin/bash
+# setup-solr.sh - Download and configure Solr + a local ZooKeeper ensemble.
 
 set -euo pipefail
 
-# Configuration variables
-SOLR_VERSION="9.3.0"
-ZOOKEEPER_VERSION="3.8.1"
-NUM_SOLR_NODES=2
-JAVA_HOME="/usr/lib/jvm/java-21-openjdk-amd64"  # Adjust as needed
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-BASE_DIR="$SCRIPT_DIR"
-ZK_CONNECT="localhost:2181,localhost:2182,localhost:2183"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/env.sh"
 
-# Check for Java
+BASE_DIR="$SCRIPT_DIR"
+ZK_PEER_PORT_BASE="${ZK_PEER_PORT_BASE:-2888}"
+ZK_ELECTION_PORT_BASE="${ZK_ELECTION_PORT_BASE:-3888}"
+
+# Check for Java; derive JAVA_HOME only if it isn't already set.
 if ! command -v java &> /dev/null; then
     echo "Java is not installed. Please install Java 11 or later."
     exit 1
 fi
+if [ -z "${JAVA_HOME:-}" ]; then
+    JAVA_BIN=$(command -v java)
+    JAVA_HOME=$(dirname "$(dirname "$(readlink -f "$JAVA_BIN")")")
+    export JAVA_HOME
+fi
+echo "Using JAVA_HOME=$JAVA_HOME"
 
 # Create directories
-mkdir -p $BASE_DIR/downloads
-mkdir -p $BASE_DIR/solr-nodes
-mkdir -p $BASE_DIR/zookeeper
+mkdir -p "$BASE_DIR/downloads"
+mkdir -p "$BASE_DIR/solr-nodes"
+mkdir -p "$BASE_DIR/zookeeper"
 
 # Download Solr
 if [ ! -f "$BASE_DIR/downloads/solr-$SOLR_VERSION.tgz" ]; then
     echo "Downloading Solr $SOLR_VERSION..."
-    curl -o $BASE_DIR/downloads/solr-$SOLR_VERSION.tgz https://archive.apache.org/dist/solr/solr/$SOLR_VERSION/solr-$SOLR_VERSION.tgz
+    curl -o "$BASE_DIR/downloads/solr-$SOLR_VERSION.tgz" "https://archive.apache.org/dist/solr/solr/$SOLR_VERSION/solr-$SOLR_VERSION.tgz"
 fi
 
 # Download ZooKeeper
 if [ ! -f "$BASE_DIR/downloads/apache-zookeeper-$ZOOKEEPER_VERSION-bin.tar.gz" ]; then
     echo "Downloading ZooKeeper $ZOOKEEPER_VERSION..."
-    curl -o $BASE_DIR/downloads/apache-zookeeper-$ZOOKEEPER_VERSION-bin.tar.gz https://archive.apache.org/dist/zookeeper/zookeeper-$ZOOKEEPER_VERSION/apache-zookeeper-$ZOOKEEPER_VERSION-bin.tar.gz
+    curl -o "$BASE_DIR/downloads/apache-zookeeper-$ZOOKEEPER_VERSION-bin.tar.gz" "https://archive.apache.org/dist/zookeeper/zookeeper-$ZOOKEEPER_VERSION/apache-zookeeper-$ZOOKEEPER_VERSION-bin.tar.gz"
 fi
 
-# Extract Solr
-echo "Extracting Solr..."
-tar xzf $BASE_DIR/downloads/solr-$SOLR_VERSION.tgz -C $BASE_DIR/downloads
+# Extract Solr (skip if already extracted)
+if [ ! -d "$BASE_DIR/downloads/solr-$SOLR_VERSION" ]; then
+    echo "Extracting Solr..."
+    tar xzf "$BASE_DIR/downloads/solr-$SOLR_VERSION.tgz" -C "$BASE_DIR/downloads"
+else
+    echo "Solr already extracted, skipping."
+fi
 
-# Extract ZooKeeper
-echo "Extracting ZooKeeper..."
-tar xzf $BASE_DIR/downloads/apache-zookeeper-$ZOOKEEPER_VERSION-bin.tar.gz -C $BASE_DIR/downloads
+# Extract ZooKeeper (skip if already extracted)
+if [ ! -d "$BASE_DIR/downloads/apache-zookeeper-$ZOOKEEPER_VERSION-bin" ]; then
+    echo "Extracting ZooKeeper..."
+    tar xzf "$BASE_DIR/downloads/apache-zookeeper-$ZOOKEEPER_VERSION-bin.tar.gz" -C "$BASE_DIR/downloads"
+else
+    echo "ZooKeeper already extracted, skipping."
+fi
 
 # Set up ZooKeeper
 echo "Setting up ZooKeeper..."
-cp -r $BASE_DIR/downloads/apache-zookeeper-$ZOOKEEPER_VERSION-bin/* $BASE_DIR/zookeeper/
-mkdir -p $BASE_DIR/zookeeper/data
+cp -r "$BASE_DIR/downloads/apache-zookeeper-$ZOOKEEPER_VERSION-bin/." "$BASE_DIR/zookeeper/"
+mkdir -p "$BASE_DIR/zookeeper/data"
 
-# Build a local 3-node ZooKeeper ensemble.
-# Each node has its own config, dataDir, clientPort, and myid.
-for i in 1 2 3; do
-    CLIENT_PORT=$((2180 + i))
-    PEER_PORT=$((2887 + i))
-    ELECTION_PORT=$((3887 + i))
+# Build the list of ensemble peers (server.N=host:peerPort:electionPort).
+SERVER_LINES=""
+for i in $(seq 1 "$NUM_ZK_NODES"); do
+    PEER_PORT=$((ZK_PEER_PORT_BASE + i - 1))
+    ELECTION_PORT=$((ZK_ELECTION_PORT_BASE + i - 1))
+    SERVER_LINES+="server.$i=127.0.0.1:${PEER_PORT}:${ELECTION_PORT}"$'\n'
+done
+
+# Write a config, dataDir, clientPort, and myid for each ensemble node.
+for i in $(seq 1 "$NUM_ZK_NODES"); do
+    CLIENT_PORT=$((ZK_CLIENT_PORT_BASE + i - 1))
     NODE_DATA_DIR="$BASE_DIR/zookeeper/data/zk$i"
     NODE_CFG="$BASE_DIR/zookeeper/conf/zoo$i.cfg"
 
@@ -65,9 +84,7 @@ initLimit=10
 syncLimit=5
 dataDir=$NODE_DATA_DIR
 clientPort=$CLIENT_PORT
-server.1=127.0.0.1:2888:3888
-server.2=127.0.0.1:2889:3889
-server.3=127.0.0.1:2890:3890
+${SERVER_LINES}
 EOF
 done
 
@@ -75,14 +92,14 @@ done
 cp "$BASE_DIR/zookeeper/conf/zoo1.cfg" "$BASE_DIR/zookeeper/conf/zoo.cfg"
 
 # Create Solr nodes
-for i in $(seq 1 $NUM_SOLR_NODES); do
+for i in $(seq 1 "$NUM_SOLR_NODES"); do
     echo "Setting up Solr node $i..."
-    NODE_DIR=$BASE_DIR/solr-nodes/node$i
-    mkdir -p $NODE_DIR
-    cp -r $BASE_DIR/downloads/solr-$SOLR_VERSION/* $NODE_DIR/
-    
+    NODE_DIR="$BASE_DIR/solr-nodes/node$i"
+    mkdir -p "$NODE_DIR"
+    cp -r "$BASE_DIR/downloads/solr-$SOLR_VERSION/." "$NODE_DIR/"
+
     # Configure Solr to use ZooKeeper
-    cp $BASE_DIR/solr-config/solr.xml $NODE_DIR/server/solr/
+    cp "$BASE_DIR/solr-config/solr.xml" "$NODE_DIR/server/solr/"
 done
 
 echo "Local ZooKeeper ensemble configured at: $ZK_CONNECT"

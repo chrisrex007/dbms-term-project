@@ -29,7 +29,7 @@ Modern applications demand search systems capable of handling massive query volu
 The system supports full-text keyword search across a large document corpus. To evaluate its performance under stress, we conducted systematic benchmarking using two approaches:
 
 1. **Siege** - An HTTP load testing utility to simulate concurrent users
-2. **Custom C++ multithreaded HTTP client** - leveraging `std::thread` and `libcurl` with ThreadPool and ConnectionPool abstractions
+2. **Custom C++ multithreaded HTTP client** - leveraging `std::thread` and `libcurl` with a `ConnectionPool` abstraction
 
 The primary outcome is a **QPS (Queries Per Second) analysis** measuring how throughput, latency, and error rates scale as concurrent request load increases. Results are visualized across four deployment configurations to highlight performance envelopes, identify bottlenecks, and demonstrate the trade-offs of distributed SolrCloud architecture versus standalone deployment on shared hardware.
 
@@ -345,10 +345,11 @@ Results are **grouped by file_name** so all paragraphs from the same document ap
 
 **Siege** is a multi-threaded HTTP load testing and benchmarking utility. Our script:
 
-1. **Tests 14 concurrency levels**: 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 79, 83, 89, 97
+1. **Tests prime-number concurrency levels**: 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 79, 83
    - Uses **prime numbers** for concurrency levels to avoid synchronization artifacts
-2. **Each test runs for 3 seconds** with the `-b` (benchmark) flag (no delays between requests)
-3. **Captures metrics** from siege's JSON output:
+   - Override with `CONCURRENT_USERS="..."`
+2. **Each test runs for 10 seconds** (override with `DURATION=...`) with the `-b` (benchmark) flag (no delays between requests)
+3. **Captures metrics** from siege's JSON output (siege is invoked with `-R benchmark/siege-config/siegerc`, which sets `json_output = true`; the script fails loudly if a metric can't be parsed):
    - Transactions (total requests completed)
    - Availability (% of successful requests)
    - Elapsed time
@@ -396,8 +397,8 @@ The custom C++ benchmark client provides capabilities that Siege does not — sp
     ┌────┴────┐
     │         │
 ┌───▼────┐  ┌─▼────────────┐
-│Thread  │  │ Connection   │
-│Pool    │  │ Pool         │
+│Worker  │  │ Connection   │
+│threads │  │ Pool         │
 │(N thds)│  │(CURL handles)│
 └───┬────┘  └──────┬───────┘
     │              │
@@ -408,21 +409,25 @@ The custom C++ benchmark client provides capabilities that Siege does not — sp
 └──────────────────────┘
 ```
 
-#### ThreadPool (`thread_pool.hpp/cpp`)
+#### Worker threads (`benchmark_runner.cpp`)
 
-A fixed-size worker pool using `std::thread`:
+Each concurrency level spawns exactly that many `std::thread` workers directly (no pool abstraction), giving precise control over the number of concurrent threads:
 
 ```cpp
-class ThreadPool {
-    std::vector<std::thread> workers_;        // Worker threads
-    std::queue<std::function<void()>> task_queue_;  // Task queue
-    std::mutex queue_mutex_;                  // Protects task_queue_
-    std::condition_variable condition_;        // Worker notification
-    std::atomic<bool> stopped_{false};        // Shutdown flag
-};
+std::vector<std::thread> workers;
+for (int t = 0; t < concurrency_level; ++t) {
+    workers.emplace_back([&]() {
+        while (running.load()) {
+            CURL* handle = conn_pool.acquire();   // shared ConnectionPool
+            RequestResult r = execute_query(handle, url);
+            conn_pool.release(handle);
+            collector.record(r);
+        }
+    });
+}
 ```
 
-**Synchronization**: Workers wait on a condition variable. When a task is submitted, `notify_one()` wakes one sleeping worker. On shutdown, `notify_all()` wakes all workers, which then drain the remaining queue before exiting.
+**Synchronization**: A `std::atomic<bool> running` flag signals all workers to stop after the duration elapses; the main thread then `join()`s every worker. Connection handoff is serialized by the `ConnectionPool`'s mutex/condition variable.
 
 #### ConnectionPool (`connection_pool.hpp/cpp`)
 
@@ -664,55 +669,53 @@ distributed-search-engine/
 │   ├── CMakeLists.txt                     ← CMake build system
 │   ├── README.md                          ← Build/usage documentation
 │   ├── include/
-│   │   ├── thread_pool.hpp                ← ThreadPool (std::thread)
 │   │   ├── connection_pool.hpp            ← ConnectionPool (libcurl)
 │   │   ├── metrics.hpp                    ← Metrics + percentiles
 │   │   └── benchmark_runner.hpp           ← Benchmark orchestrator
 │   ├── src/
 │   │   ├── main.cpp                       ← CLI entry point
-│   │   ├── thread_pool.cpp                ← ThreadPool implementation
 │   │   ├── connection_pool.cpp            ← ConnectionPool implementation
 │   │   ├── metrics.cpp                    ← p50/p95/p99 computation
-│   │   └── benchmark_runner.cpp           ← Multi-level benchmark
+│   │   └── benchmark_runner.cpp           ← Multi-level benchmark (std::thread workers)
 │   └── build/
 │       └── solr_benchmark                 ← Compiled binary
 │
 ├── solr-apache/
-│   ├── searchcores/
-│   │   ├── core.properties                ← Core registration
-│   │   └── conf/
-│   │       ├── managed-schema.xml         ← Schema (fields, analyzers)
-│   │       ├── solrconfig.xml             ← Handlers, highlighting, facets
-│   │       ├── stopwords.txt              ← Stop words list
-│   │       └── synonyms.txt               ← Synonym mappings
-│   │
-│   ├── solr-config/
-│   │   ├── solr.xml                       ← SolrCloud config
-│   │   └── zoo.cfg                        ← ZooKeeper config
-│   │
-│   ├── scripts/
-│   │   ├── setup-solr.sh                  ← Downloads + configures Solr & ZK
-│   │   ├── start-services.sh              ← Starts ZK + Solr nodes
-│   │   ├── index-sample-data.sh           ← Generates + indexes 10K docs
-│   │   ├── run-siege-benchmark.sh         ← Automated siege benchmarking
-│   │   ├── finalize-benchmark.sh          ← Comprehensive benchmark + report
-│   │   ├── visualize.py                   ← Matplotlib chart generation
-│   │   ├── compare_configs.py             ← Multi-config comparison charts
-│   │   ├── add_to_website.py              ← Injects results into HTML
-│   │   ├── benchmark/
-│   │   │   ├── siege-config/urls.txt      ← Siege query URL list
-│   │   │   └── results/                   ← Raw benchmark result files
-│   │   └── visualizations/                ← Generated PNG charts
-│   │
+│   └── scripts/
+│       ├── env.sh                         ← Shared config (collection, ports, URLs)
+│       ├── setup-solr.sh                  ← Downloads + configures Solr & ZK
+│       ├── start-services.sh              ← Starts ZK + Solr nodes, uploads configset
+│       ├── index-sample-data.sh           ← Generates + indexes 10K docs
+│       ├── run-siege-benchmark.sh         ← Automated siege benchmarking
+│       ├── finalize-benchmark.sh          ← Full benchmark + report
+│       ├── visualize.py                   ← Matplotlib chart generation
+│       ├── compare_configs.py             ← Multi-config charts (reads configs.json)
+│       ├── add_to_website.py              ← Injects results into benchmark.html
+│       ├── sync_dashboard_data.py         ← Syncs dashboard CONFIGS from configs.json
+│       ├── solr-config/
+│       │   ├── solr.xml                   ← SolrCloud config
+│       │   ├── zoo.cfg                    ← ZooKeeper config
+│       │   └── searchcore/
+│       │       ├── core.properties        ← Core registration
+│       │       └── conf/
+│       │           ├── managed-schema.xml ← Schema (fields, analyzers)
+│       │           ├── solrconfig.xml     ← Handlers, highlighting, facets
+│       │           ├── stopwords.txt      ← Stop words list
+│       │           └── synonyms.txt       ← Synonym mappings
+│       └── benchmark/
+│           └── siege-config/
+│               ├── urls.txt               ← Siege query URL list
+│               └── siegerc                ← siege rc (enables JSON output)
+│
 │   └── webapp/
-│       ├── index.html                     ← Search interface (premium)
+│       ├── index.html                     ← Search interface
 │       ├── benchmark.html                 ← Benchmark dashboard (Chart.js)
+│       ├── server.py                      ← Static server + Solr proxy
 │       ├── css/style.css                  ← Dark theme + glassmorphism
 │       ├── js/app.js                      ← Search, upload, suggestions
 │       ├── data/
-│       │   ├── siege_data.json            ← Processed siege results
-│       │   └── comparison_data.json       ← Config comparison data
-│       ├── images/                        ← Visualization images
+│       │   └── configs.json               ← Canonical benchmark dataset (source of truth)
+│       ├── images/                        ← Screenshots (charts are gitignored)
 │       └── notes.txt                      ← Raw benchmark data table
 ```
 
@@ -772,14 +775,17 @@ make -j$(nproc)
   --output results.json
 ```
 
-### Step 6: Generate Comparison Charts
+### Step 7: Generate Comparison Charts
 
 ```bash
 cd ../solr-apache/scripts
 python3 compare_configs.py
 ```
 
-### Step 7: View Benchmark Dashboard
+The dashboard's data comes from `webapp/data/configs.json`. If you edit that file,
+run `python3 sync_dashboard_data.py` to regenerate the dashboard's inline data.
+
+### Step 8: View Benchmark Dashboard
 
 Open in browser:
 ```
@@ -824,7 +830,7 @@ cd /home/$USER/dbms-term-project/solr-apache/scripts/zookeeper
 
 ### Technical Contributions
 
-- **Complete C++ benchmark client** with ThreadPool, ConnectionPool, and percentile-based metrics — providing capabilities beyond Siege
+- **Complete C++ benchmark client** with `std::thread` workers, a `ConnectionPool`, and percentile-based metrics — providing capabilities beyond Siege
 - **Multi-configuration comparison framework** with automated chart generation
 - **Premium web interface** with PDF/text upload, paragraph-level search, and interactive benchmark dashboard
 - **End-to-end automation** from infrastructure setup through benchmarking to visualization

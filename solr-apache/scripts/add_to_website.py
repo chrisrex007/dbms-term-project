@@ -1,14 +1,24 @@
 import os
+import sys
 import json
 import re
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
 from datetime import datetime
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+WEBAPP_DIR = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "webapp"))
+IMAGES_DIR = os.path.join(WEBAPP_DIR, "images")
+DATA_DIR = os.path.join(WEBAPP_DIR, "data")
+DEFAULT_INPUT = os.path.join(SCRIPT_DIR, "benchmark_results", "siege_results.json")
+
+
 # Ensure output directories exist
 def ensure_dirs():
-    os.makedirs('../webapp/images', exist_ok=True)
-    os.makedirs('../webapp/data', exist_ok=True)
+    os.makedirs(IMAGES_DIR, exist_ok=True)
+    os.makedirs(DATA_DIR, exist_ok=True)
 
 # Function to read and process siege log data
 def process_siege_data(log_file):
@@ -41,18 +51,8 @@ def process_siege_data(log_file):
     return pd.DataFrame(rows)
 
 
-# Generate benchmark comparison data
-def generate_comparison_data():
-    engines = ['Apache Solr', 'Elasticsearch', 'OpenSearch', 'Typesense']
-    qps_values = [2500, 2200, 2300, 1800]  # Sample QPS values
-    
-    return pd.DataFrame({
-        'engine': engines,
-        'qps': qps_values
-    })
-
 # Create visualizations
-def create_visualizations(siege_data, comparison_data):
+def create_visualizations(siege_data):
     ensure_dirs()
     siege_by_concurrency = siege_data.sort_values(by='concurrency').reset_index(drop=True)
     
@@ -63,28 +63,10 @@ def create_visualizations(siege_data, comparison_data):
     plt.xlabel('Concurrency')
     plt.ylabel('Queries Per Second (QPS)')
     plt.grid(True)
-    plt.savefig('../webapp/images/concurrency_vs_qps.png')
+    plt.savefig(os.path.join(IMAGES_DIR, 'concurrency_vs_qps.png'))
     plt.close()
     
-    # 2. Search Engine Comparison
-    plt.figure(figsize=(10, 6))
-    bars = plt.bar(comparison_data['engine'], comparison_data['qps'])
-    
-    # Add value labels on top of bars
-    for bar in bars:
-        height = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width()/2., height + 50,
-                 f'{height:.0f}',
-                 ha='center', va='bottom')
-    
-    plt.title('Search Engine Performance Comparison')
-    plt.xlabel('Search Engine')
-    plt.ylabel('Queries Per Second (QPS)')
-    plt.grid(True, axis='y')
-    plt.savefig('../webapp/images/engine_comparison.png')
-    plt.close()
-    
-    # 3. Time series of QPS (if we have time data)
+    # 2. Time series of QPS (if we have time data)
     if len(siege_data) > 1:
         run_index = list(range(1, len(siege_data) + 1))
         plt.figure(figsize=(10, 6))
@@ -94,26 +76,20 @@ def create_visualizations(siege_data, comparison_data):
         plt.ylabel('Queries Per Second (QPS)')
         plt.grid(True)
         plt.tight_layout()
-        plt.savefig('../webapp/images/qps_over_time.png')
+        plt.savefig(os.path.join(IMAGES_DIR, 'qps_over_time.png'))
         plt.close()
     
     # Save data as JSON for the webapp
     siege_data_json = siege_by_concurrency.to_dict(orient='records')
-    comparison_data_json = comparison_data.to_dict(orient='records')
     
-    with open('../webapp/data/siege_data.json', 'w') as f:
+    with open(os.path.join(DATA_DIR, 'siege_data.json'), 'w') as f:
         json.dump(siege_data_json, f)
-    
-    with open('../webapp/data/comparison_data.json', 'w') as f:
-        json.dump(comparison_data_json, f)
     
     # Return paths for HTML injection
     return {
         'concurrency_vs_qps': 'images/concurrency_vs_qps.png',
-        'engine_comparison': 'images/engine_comparison.png',
         'qps_over_time': 'images/qps_over_time.png',
         'siege_data': siege_data_json,
-        'comparison_data': comparison_data.to_dict(orient='records')
     }
 
 
@@ -180,12 +156,6 @@ def build_benchmark_section(viz_results):
                 <h3>QPS Across Sequential Test Runs</h3>
                 <img src="{viz_results['qps_over_time']}" alt="QPS Across Test Runs Chart" class="benchmark-image">
                 <p>This chart tracks QPS by test execution order.</p>
-            </div>
-
-            <div class="visualization">
-                <h3>Search Engine Comparison</h3>
-                <img src="{viz_results['engine_comparison']}" alt="Search Engine Comparison Chart" class="benchmark-image">
-                <p>Comparison of Apache Solr's performance against other popular search engines under similar test conditions.</p>
             </div>
 
             <div class="benchmark-data">
@@ -270,7 +240,7 @@ def build_benchmark_section(viz_results):
 
 # Update the HTML with visualization results
 def update_html(viz_results):
-    html_file = '../webapp/benchmark.html'
+    html_file = os.path.join(WEBAPP_DIR, 'benchmark.html')
     
     try:
         with open(html_file, 'r') as f:
@@ -300,16 +270,13 @@ def update_html(viz_results):
         print(f"Error updating HTML: {e}")
 
 def main():
-    # Process log data
-    siege_data = process_siege_data("./benchmark_results/siege_results.json")  # Update path as needed
+    # Input siege results file: argv[1] if provided, else the default location.
+    input_file = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_INPUT
+    siege_data = process_siege_data(input_file)
     print(siege_data)
-    # Generate comparison data
-    comparison_data = generate_comparison_data()
-    
-    print(comparison_data)
+
     # Create visualizations and get results
-    viz_results = create_visualizations(siege_data, comparison_data)
-    
+    viz_results = create_visualizations(siege_data)
 
     # Update HTML with results
     update_html(viz_results)

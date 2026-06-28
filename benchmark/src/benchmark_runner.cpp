@@ -1,17 +1,20 @@
 #include "benchmark_runner.hpp"
 
 #include <atomic>
+#include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <thread>
+#include <vector>
 
 namespace solrbench {
 
 // CURL write callback - captures response body
-static size_t write_callback(char* ptr, size_t size, size_t nmemb, void* userdata) {
+static size_t write_callback(char* /*ptr*/, size_t size, size_t nmemb, void* userdata) {
     size_t total = size * nmemb;
     auto* response_size = static_cast<size_t*>(userdata);
     *response_size += total;
@@ -45,7 +48,8 @@ std::vector<BenchmarkMetrics> BenchmarkRunner::run() {
 
     std::vector<BenchmarkMetrics> all_results;
 
-    for (int level : config_.concurrency_levels) {
+    for (size_t li = 0; li < config_.concurrency_levels.size(); ++li) {
+        int level = config_.concurrency_levels[li];
         std::cout << "\n>> Running benchmark: " << level << " concurrent threads..." << std::endl;
 
         BenchmarkMetrics metrics = run_single(level);
@@ -63,7 +67,7 @@ std::vector<BenchmarkMetrics> BenchmarkRunner::run() {
         std::cout << "   Concurrency:      " << metrics.concurrency << std::endl;
 
         // Pause between levels
-        if (&level != &config_.concurrency_levels.back()) {
+        if (li + 1 < config_.concurrency_levels.size()) {
             std::cout << "\n   Pausing " << config_.pause_between_levels_seconds << "s before next level..." << std::endl;
             std::this_thread::sleep_for(std::chrono::seconds(config_.pause_between_levels_seconds));
         }

@@ -12,74 +12,26 @@ matplotlib.use('Agg')
 import numpy as np
 from datetime import datetime
 
-# benchmark data from notes.txt
-CONFIGS = {
-    "Standalone (1 core)": {
-        "color": "#22c55e",
-        "data": [
-            (1.95, 6970, 9.09, 766.78),
-            (2.93, 17162, 9.93, 1728.30),
-            (4.86, 18041, 9.93, 1816.82),
-            (6.74, 36905, 9.93, 3716.52),
-            (10.64, 46845, 9.95, 4708.04),
-            (12.63, 41654, 9.95, 4186.33),
-            (16.61, 39735, 9.94, 3997.48),
-            (18.64, 36789, 9.94, 3701.11),
-            (22.62, 37421, 9.94, 3764.69),
-            (28.62, 37750, 9.94, 3797.79),
-            (30.58, 37371, 9.94, 3759.66),
-            (36.62, 37597, 9.94, 3782.39),
-            (40.58, 38513, 9.94, 3874.55),
-            (42.6, 37896, 9.94, 3812.47),
-            (46.6, 37993, 9.94, 3822.23),
-            (52.55, 37336, 9.95, 3752.36),
-            (58.46, 34965, 9.93, 3521.15),
-            (60.51, 32272, 9.95, 3243.42),
-            (66.46, 32297, 9.92, 3255.75),
-            (70.38, 32365, 9.94, 3256.04),
-            (72.46, 32262, 9.94, 3245.67),
-            (77.94, 32410, 9.93, 3263.85),
-        ]
-    },
-    "1-Node Cloud\n(2s×2r, 1 ZK)": {
-        "color": "#818cf8",
-        "data": [
-            (1.94, 4989, 9.71, 513.80),
-            (2.9, 13308, 9.96, 1336.14),
-            (0.76, 2586, 9.96, 259.64),
-        ]
-    },
-    "3-Node Cloud\n(3s×4r, 1 ZK)": {
-        "color": "#f59e0b",
-        "data": [
-            (1.97, 3371, 9.43, 357.48),
-            (2.92, 6458, 9.95, 649.05),
-            (4.83, 20543, 9.95, 2064.62),
-            (6.75, 29345, 9.96, 2946.29),
-            (5.58, 23721, 9.96, 2381.63),
-            (0.58, 1468, 9.96, 147.39),
-            (2.32, 7265, 9.96, 729.42),
-            (3.66, 12346, 9.94, 1242.05),
-            (0.97, 1424, 9.96, 142.97),
-            (2.54, 8266, 9.94, 831.59),
-            (1.7, 3515, 9.94, 353.62),
-            (1.4, 3369, 9.94, 338.93),
-        ]
-    },
-    "3-Node Cloud\n(3s×4r, 3 ZK)": {
-        "color": "#f87171",
-        "data": [
-            (1.96, 3230, 9.61, 336.11),
-            (2.94, 7597, 9.95, 763.52),
-            (1.08, 3709, 9.96, 372.39),
-            (2.45, 7955, 9.94, 800.30),
-            (1.05, 3183, 9.96, 319.58),
-            (1.3, 3930, 9.94, 395.37),
-            (2.03, 6682, 9.94, 672.23),
-            (1.76, 4772, 9.94, 480.08),
-        ]
-    }
-}
+# Benchmark data is loaded from the canonical dataset (single source of truth),
+# shared with the dashboard. Regenerate that file's consumers via sync_dashboard_data.py.
+def load_configs():
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.normpath(os.path.join(here, "..", "webapp", "data", "configs.json"))
+    try:
+        with open(path) as f:
+            data = json.load(f)["configs"]
+    except FileNotFoundError:
+        raise SystemExit(f"Error: canonical dataset not found at {path}")
+    configs = {}
+    for c in data:
+        configs[c["name"]] = {
+            "color": c["color"],
+            "data": [(r["concurrency"], r["requests"], r["elapsed"], r["qps"]) for r in c["data"]],
+        }
+    return configs
+
+
+CONFIGS = load_configs()
 
 def create_all_charts(output_dir):
     os.makedirs(output_dir, exist_ok=True)

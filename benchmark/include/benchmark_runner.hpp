@@ -2,7 +2,6 @@
 
 #include "connection_pool.hpp"
 #include "metrics.hpp"
-#include "thread_pool.hpp"
 
 #include <string>
 #include <vector>
@@ -26,7 +25,7 @@ struct BenchmarkConfig {
  * BenchmarkRunner
  *
  * For each concurrency level:
- *   1. Creates a ThreadPool of the specified size
+ *   1. Spawns that many std::thread workers
  *   2. Shares a ConnectionPool for CURL handle reuse
  *   3. Each thread repeatedly picks a query, executes it, records metrics
  *   4. After the duration expires, collects and aggregates results

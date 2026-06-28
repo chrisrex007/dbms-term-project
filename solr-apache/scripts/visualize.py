@@ -177,11 +177,11 @@ def create_summary_report(data, results, output_dir, timestamp):
             f.write("- **Scaling concern**: Response time increased significantly at higher concurrency levels\n")
         
         f.write("\n## Visualization Files\n\n")
-        f.write("- response_time_{timestamp}.png - Response time vs concurrent users\n")
-        f.write("- transaction_rate_{timestamp}.png - Transaction rate vs concurrent users\n")
-        f.write("- availability_{timestamp}.png - Availability vs concurrent users\n")
-        f.write("- success_failure_{timestamp}.png - Successful vs failed transactions\n")
-        f.write("- combined_metrics_{timestamp}.png - Combined performance metrics\n")
+        f.write(f"- response_time_{timestamp}.png - Response time vs concurrent users\n")
+        f.write(f"- transaction_rate_{timestamp}.png - Transaction rate vs concurrent users\n")
+        f.write(f"- availability_{timestamp}.png - Availability vs concurrent users\n")
+        f.write(f"- success_failure_{timestamp}.png - Successful vs failed transactions\n")
+        f.write(f"- combined_metrics_{timestamp}.png - Combined performance metrics\n")
     
     print(f"Summary report saved to {report_file}")
 

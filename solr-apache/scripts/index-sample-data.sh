@@ -3,7 +3,11 @@
 
 set -euo pipefail
 
-BASE_DIR=$(pwd)
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/env.sh"
+
+BASE_DIR="$SCRIPT_DIR"
 DOWNLOADS_DIR="$BASE_DIR/downloads"
 CHUNKS_DIR="$DOWNLOADS_DIR/chunks"
 SOLR_URL=${SOLR_URL:-http://localhost:8983/solr/searchcore}
@@ -22,8 +26,12 @@ require_command() {
 }
 
 generate_wikipedia_abstracts_data() {
-    echo "Downloading public Wikipedia dump..."
-    # curl -L --fail --retry 3 -o "$WIKI_DUMP_FILE" "$WIKI_DUMP_URL"
+    if [ ! -f "$WIKI_DUMP_FILE" ]; then
+        echo "Downloading public Wikipedia dump..."
+        curl -L --fail --retry 3 -o "$WIKI_DUMP_FILE" "$WIKI_DUMP_URL"
+    else
+        echo "Using existing Wikipedia dump at $WIKI_DUMP_FILE"
+    fi
 
     echo "Transforming Wikipedia pages into Solr documents..."
     python3 - "$WIKI_DUMP_FILE" "$SAMPLE_FILE" "$SAMPLE_COUNT" << 'PY'
@@ -196,14 +204,14 @@ if [ -z "$ACTUAL_COUNT" ] || [ "$ACTUAL_COUNT" -eq 0 ] 2>/dev/null; then
 fi
 
 echo "Checking if Solr is running..."
-if ! curl -s "http://localhost:8983/solr/" > /dev/null; then
+if ! curl -s "${SOLR_BASE_URL}/" > /dev/null; then
     echo "Error: Solr is not running. Please start Solr using the start-services.sh script."
     exit 1
 fi
 
-echo "Checking if 'searchcore' collection exists..."
-if ! curl -s "http://localhost:8983/solr/admin/collections?action=LIST" | grep -q "searchcore"; then
-    echo "Error: 'searchcore' collection does not exist. Please create it first."
+echo "Checking if '${COLLECTION}' collection exists..."
+if ! curl -s "${SOLR_BASE_URL}/admin/collections?action=LIST" | grep -q "${COLLECTION}"; then
+    echo "Error: '${COLLECTION}' collection does not exist. Please create it first."
     exit 1
 fi
 

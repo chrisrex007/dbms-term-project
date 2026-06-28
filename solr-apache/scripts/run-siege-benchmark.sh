@@ -1,73 +1,94 @@
 #!/bin/bash
+# run-siege-benchmark.sh - Sweep siege across concurrency levels and emit JSON.
 
-# Use the provided URL as the base URL.
-BASE_URL="http://localhost:8983/solr"
-CORE_URL="${BASE_URL}/searchcore"  # Adjust this if necessary.
-OUTPUT_DIR="./benchmark_results"
+set -euo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/env.sh"
+
+CORE_URL="$SOLR_URL"
+OUTPUT_DIR="${OUTPUT_DIR:-$SCRIPT_DIR/benchmark_results}"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 OUTPUT_FILE="${OUTPUT_DIR}/siege_results.json"
-QUERY_ENDPOINT="/select?q=TCP"
+QUERY_ENDPOINT="${QUERY_ENDPOINT:-/select?q=TCP}"
 
-mkdir -p $OUTPUT_DIR
+# Test duration in seconds per level. Matches the documented ~10s methodology.
+DURATION="${DURATION:-10}"
+# Concurrency levels (prime numbers avoid synchronization/aliasing artifacts).
+read -r -a CONCURRENT_USERS <<< "${CONCURRENT_USERS:-2 3 5 7 11 13 17 19 23 29 79 83}"
 
-# Array of concurrent users to test
-CONCURRENT_USERS=(2 3 5 7 11 13 17 19 23 29 79 83)
-# Test duration in seconds
-DURATION=3
+mkdir -p "$OUTPUT_DIR"
+
+if ! command -v siege >/dev/null 2>&1; then
+  echo "Error: 'siege' is not installed." >&2
+  exit 1
+fi
+if [ ! -f "$SIEGERC" ]; then
+  echo "Error: siege resource file not found at $SIEGERC" >&2
+  exit 1
+fi
 
 echo "Starting benchmark tests against $CORE_URL"
 echo "Results will be saved to $OUTPUT_FILE"
 
-# Initialize JSON output - write to a temporary file first
 TEMP_FILE="${OUTPUT_DIR}/temp_results_${TIMESTAMP}.json"
 
-echo "{" > $TEMP_FILE
-echo "  \"benchmark_timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\"," >> $TEMP_FILE
-echo "  \"solr_url\": \"$CORE_URL\"," >> $TEMP_FILE
-echo "  \"results\": [" >> $TEMP_FILE
+{
+  echo "{"
+  echo "  \"benchmark_timestamp\": \"$(date -u +"%Y-%m-%dT%H:%M:%SZ")\","
+  echo "  \"solr_url\": \"$CORE_URL\","
+  echo "  \"results\": ["
+} > "$TEMP_FILE"
 
 first_entry=true
 
+# Extract a numeric JSON field from siege's JSON stats; empty if absent.
+# siege pads values with tabs/spaces, so strip all whitespace and commas.
+# `|| true` keeps a no-match (grep exit 1) from aborting the script under
+# `set -o pipefail`, so the validation loop below can emit its diagnostic.
+extract_metric() {
+  echo "$1" | grep -i "\"$2\":" | awk -F: '{print $2}' | tr -d '[:space:],' || true
+}
+
 for USERS in "${CONCURRENT_USERS[@]}"; do
   echo "Running test with $USERS concurrent users for $DURATION seconds..."
-  
-  # Run siege and capture both stdout and stderr
-  SIEGE_OUTPUT=$(siege -c $USERS -t${DURATION}S -b "${CORE_URL}${QUERY_ENDPOINT}" 2>&1)
 
-  # echo "Siege output for ${USERS} users:"
-  # echo "$SIEGE_OUTPUT"
+  # -R points siege at the repo-local rc (json_output=true) so the parser below
+  # always receives JSON, regardless of the user's personal ~/.siege/siege.conf.
+  SIEGE_OUTPUT=$(siege -R "$SIEGERC" -c "$USERS" -t"${DURATION}S" -b "${CORE_URL}${QUERY_ENDPOINT}" 2>&1 || true)
 
-  # Extract key metrics using grep and awk, and ensure they're clean numbers
-  TRANSACTIONS=$(echo "$SIEGE_OUTPUT" | grep -i '"transactions":' | awk -F: '{print $2}' | tr -d ', ')
-  AVAILABILITY=$(echo "$SIEGE_OUTPUT" | grep -i '"availability":' | awk -F: '{print $2}' | tr -d ', ')
-  ELAPSED_TIME=$(echo "$SIEGE_OUTPUT" | grep -i '"elapsed_time":' | awk -F: '{print $2}' | tr -d ', ')
-  RESPONSE_TIME=$(echo "$SIEGE_OUTPUT" | grep -i '"response_time":' | awk -F: '{print $2}' | tr -d ', ')
-  TRANSACTION_RATE=$(echo "$SIEGE_OUTPUT" | grep -i '"transaction_rate":' | awk -F: '{print $2}' | tr -d ', ')
-  THROUGHPUT=$(echo "$SIEGE_OUTPUT" | grep -i '"throughput":' | awk -F: '{print $2}' | tr -d ', ')
-  CONCURRENCY=$(echo "$SIEGE_OUTPUT" | grep -i '"concurrency":' | awk -F: '{print $2}' | tr -d ', ')
-  SUCCESSFUL_TRANSACTIONS=$(echo "$SIEGE_OUTPUT" | grep -i '"successful_transactions":' | awk -F: '{print $2}' | tr -d ', ')
-  FAILED_TRANSACTIONS=$(echo "$SIEGE_OUTPUT" | grep -i '"failed_transactions":' | awk -F: '{print $2}' | tr -d ', ')
-  
-  # Check if any values are empty and set to 0 if they are
-  TRANSACTIONS=${TRANSACTIONS:-0}
-  AVAILABILITY=${AVAILABILITY:-0}
-  ELAPSED_TIME=${ELAPSED_TIME:-0}
-  RESPONSE_TIME=${RESPONSE_TIME:-0}
-  TRANSACTION_RATE=${TRANSACTION_RATE:-0}
-  THROUGHPUT=${THROUGHPUT:-0}
-  CONCURRENCY=${CONCURRENCY:-0}
-  SUCCESSFUL_TRANSACTIONS=${SUCCESSFUL_TRANSACTIONS:-0}
-  FAILED_TRANSACTIONS=${FAILED_TRANSACTIONS:-0}
-  
-  # Add comma separator if not the first entry
+  TRANSACTIONS=$(extract_metric "$SIEGE_OUTPUT" transactions)
+  AVAILABILITY=$(extract_metric "$SIEGE_OUTPUT" availability)
+  ELAPSED_TIME=$(extract_metric "$SIEGE_OUTPUT" elapsed_time)
+  RESPONSE_TIME=$(extract_metric "$SIEGE_OUTPUT" response_time)
+  TRANSACTION_RATE=$(extract_metric "$SIEGE_OUTPUT" transaction_rate)
+  THROUGHPUT=$(extract_metric "$SIEGE_OUTPUT" throughput)
+  CONCURRENCY=$(extract_metric "$SIEGE_OUTPUT" concurrency)
+  SUCCESSFUL_TRANSACTIONS=$(extract_metric "$SIEGE_OUTPUT" successful_transactions)
+  FAILED_TRANSACTIONS=$(extract_metric "$SIEGE_OUTPUT" failed_transactions)
+
+  # Fail loudly instead of silently writing zeros: an empty parse means siege
+  # produced no JSON (wrong rc, siege error, or Solr unreachable).
+  for metric in TRANSACTIONS AVAILABILITY ELAPSED_TIME RESPONSE_TIME \
+                TRANSACTION_RATE THROUGHPUT CONCURRENCY \
+                SUCCESSFUL_TRANSACTIONS FAILED_TRANSACTIONS; do
+    if [ -z "${!metric}" ]; then
+      echo "Error: could not parse '$metric' from siege output at concurrency $USERS." >&2
+      echo "Ensure Solr is reachable and siege JSON output is enabled (json_output=true in $SIEGERC)." >&2
+      echo "----- raw siege output -----" >&2
+      echo "$SIEGE_OUTPUT" >&2
+      exit 1
+    fi
+  done
+
   if [ "$first_entry" = true ]; then
     first_entry=false
   else
-    echo "    ," >> $TEMP_FILE
+    echo "    ," >> "$TEMP_FILE"
   fi
-  
-  # Add result entry to JSON
-  cat << EOF >> $TEMP_FILE
+
+  cat << EOF >> "$TEMP_FILE"
     {
       "concurrent_users": $USERS,
       "duration_seconds": $DURATION,
@@ -83,42 +104,37 @@ for USERS in "${CONCURRENT_USERS[@]}"; do
     }
 EOF
 
-  # Short pause between tests
   sleep 2
 done
 
-# Finish JSON structure
-echo "  ]" >> $TEMP_FILE
-echo "}" >> $TEMP_FILE
+{
+  echo "  ]"
+  echo "}"
+} >> "$TEMP_FILE"
 
-# Validate the JSON before finalizing
-if command -v jq &> /dev/null; then
-    # If jq is available, use it to validate and prettify
-    jq . $TEMP_FILE > $OUTPUT_FILE
-    if [ $? -ne 0 ]; then
-        echo "ERROR: Generated JSON is invalid. Check the temp file at $TEMP_FILE"
-        exit 1
-    fi
+# Validate JSON before finalizing (python3 is always available; jq is optional).
+if command -v jq >/dev/null 2>&1; then
+  jq . "$TEMP_FILE" > "$OUTPUT_FILE"
 else
-    # If jq is not available, just move the temp file
-    mv $TEMP_FILE $OUTPUT_FILE
+  python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$TEMP_FILE"
+  mv "$TEMP_FILE" "$OUTPUT_FILE"
 fi
+rm -f "$TEMP_FILE"
 
 echo "Benchmark complete. Results saved to $OUTPUT_FILE"
-echo "You can now visualize these results with: python3 visualize.py $OUTPUT_FILE"
 
-# Echo the content of the JSON file for debugging
-echo "JSON file content preview:"
-head -n 20 $OUTPUT_FILE
+# Post-process from the script directory so relative paths resolve correctly.
+# Activate a virtualenv only if VENV is provided; otherwise use python3 on PATH.
+if [ -n "${VENV:-}" ] && [ -f "${VENV}/bin/activate" ]; then
+  # shellcheck source=/dev/null
+  source "${VENV}/bin/activate"
+fi
 
-# Activate Python environment and run post-processing
-echo "Activating Python virtual environment..."
-source ~/solr-project/bin/activate
-
+cd "$SCRIPT_DIR"
 echo "Running visualization script..."
-python3 visualize.py ./benchmark_results/siege_results.json
+python3 visualize.py "$OUTPUT_FILE"
 
 echo "Running add_to_website script..."
-python3 add_to_website.py
+python3 add_to_website.py "$OUTPUT_FILE"
 
 echo "All tasks completed successfully."

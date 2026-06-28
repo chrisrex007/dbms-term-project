@@ -573,8 +573,10 @@ async function performSearch() {
     `;
     resultsStats.innerHTML = '';
 
-    // Construct the Solr query URL with improved highlighting and paragraph-level searching
-    let url = `${SOLR_URL}/select?q=${encodeURIComponent(currentQuery)}&start=${currentPage}&rows=${ROWS_PER_PAGE}`;
+    // Construct the Solr query URL with improved highlighting and paragraph-level searching.
+    // currentPage is a zero-based page index; Solr's `start` is a row offset.
+    const startOffset = currentPage * ROWS_PER_PAGE;
+    let url = `${SOLR_URL}/select?q=${encodeURIComponent(currentQuery)}&start=${startOffset}&rows=${ROWS_PER_PAGE}`;
 
     // Enhanced highlighting for paragraphs
     url += '&hl=on&hl.fl=content,paragraph_text&hl.snippets=3&hl.fragsize=150';

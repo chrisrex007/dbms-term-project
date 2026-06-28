@@ -7,8 +7,12 @@ import urllib.error
 import sys
 import os
 
-SOLR_BASE = "http://localhost:8983"
+SOLR_BASE = os.environ.get("SOLR_BASE", "http://localhost:8983")
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 9090
+# Bind to loopback by default; this process is an open proxy to Solr (including
+# /solr/admin and update/delete), so don't expose it on all interfaces unless
+# explicitly asked via BIND_HOST.
+BIND_HOST = os.environ.get("BIND_HOST", "127.0.0.1")
 
 class SolrProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
@@ -63,8 +67,8 @@ class SolrProxyHandler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    server = http.server.HTTPServer(("0.0.0.0", PORT), SolrProxyHandler)
-    print(f"   SolrSearch server running at http://localhost:{PORT}")
+    server = http.server.HTTPServer((BIND_HOST, PORT), SolrProxyHandler)
+    print(f"   SolrSearch server running at http://{BIND_HOST}:{PORT}")
     print(f"   Proxying Solr requests to {SOLR_BASE}")
     print(f"   Press Ctrl+C to stop")
     try:

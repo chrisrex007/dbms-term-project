@@ -1,5 +1,6 @@
 #include "benchmark_runner.hpp"
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -129,13 +130,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // Auto-size connection pool if not specified
-    if (config.connection_pool_size == 0) {
-        config.connection_pool_size = *std::max_element(
-            config.concurrency_levels.begin(), config.concurrency_levels.end());
-    }
-
-    // Validate configuration
+    // Validate configuration before using the concurrency levels.
     if (config.concurrency_levels.empty()) {
         std::cerr << "Error: No concurrency levels specified." << std::endl;
         return 1;
@@ -143,6 +138,12 @@ int main(int argc, char* argv[]) {
     if (config.duration_seconds <= 0) {
         std::cerr << "Error: Duration must be positive." << std::endl;
         return 1;
+    }
+
+    // Auto-size connection pool if not specified (now safe: list is non-empty).
+    if (config.connection_pool_size == 0) {
+        config.connection_pool_size = *std::max_element(
+            config.concurrency_levels.begin(), config.concurrency_levels.end());
     }
 
     // Run the benchmark

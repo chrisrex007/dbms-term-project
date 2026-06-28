@@ -4,7 +4,7 @@ A high-performance HTTP load testing tool specifically designed for benchmarking
 
 ## Features
 
-- **ThreadPool**: Fixed-size thread pool using `std::thread` with task queue, mutex, and condition variable synchronization
+- **Concurrent workers**: Each concurrency level spawns that many `std::thread` workers that loop requests for the configured duration
 - **ConnectionPool**: Pre-initialized CURL handles with TCP keep-alive, DNS caching, and thread-safe checkout/return
 - **Latency Percentiles**: Computes p50, p95, p99 latency (not available from Siege)
 - **Siege-Compatible Output**: JSON format works directly with the existing `visualize.py` script
@@ -25,8 +25,8 @@ A high-performance HTTP load testing tool specifically designed for benchmarking
     ┌────┴────┐
     │         │
 ┌───▼───┐  ┌─▼────────────┐
-│Thread  │  │ Connection   │
-│Pool    │  │ Pool         │
+│Worker  │  │ Connection   │
+│threads │  │ Pool         │
 │(N thds)│  │(CURL handles)│
 └───┬───┘  └──────┬───────┘
     │              │
