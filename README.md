@@ -537,95 +537,107 @@ Injects benchmark results into the web dashboard's HTML.
 
 ### 9.1 Test Configurations
 
-Four configurations were benchmarked on the **same hardware**:
+All four configurations were benchmarked on the **same host** — a 22-core machine with 15 GB RAM running Apache Solr 9.3.0, ZooKeeper 3.8.1, and Java 17. The corpus is ~5,000 Simple-English-Wikipedia documents; each concurrency level was driven by **siege** for ~6 seconds with the query `q=city` (567 matching documents, exercising the configured highlighting and faceting).
 
-| Config # | Description | Nodes | Cores | Shards | Replicas | ZooKeeper |
-|----------|-------------|-------|-------|--------|----------|-----------|
-| 1 | **Standalone** | 1 | 1 | — | — | — |
-| 2 | **SolrCloud (Small)** | 1 | 4 | 2 | 2 | 1 |
-| 3 | **SolrCloud (Large)** | 3 | 12 | 3 | 4 | 1 |
-| 4 | **SolrCloud (Full HA)** | 3 | 12 | 3 | 4 | 3 |
+| Config # | Description | Solr Nodes | Shards | Replicas | ZooKeeper |
+|----------|-------------|-----------|--------|----------|-----------|
+| 1 | **Standalone** (no SolrCloud) | 1 | — | — | — |
+| 2 | **SolrCloud** | 1 | 2 | 2 | 1 |
+| 3 | **SolrCloud** | 3 | 3 | 4 | 1 |
+| 4 | **SolrCloud (Full HA)** | 3 | 3 | 4 | 3 |
 
-**Test methodology**: Each concurrency level runs for ~10 seconds. Siege sends continuous requests with no inter-request delay (`-b` benchmark mode). Measured concurrency captures the actual system behavior, not the configured thread count.
+> **Note:** These numbers were reproduced on a single multi-core host, so all SolrCloud nodes/replicas compete for the same CPU. They show the *relative* cost of distribution and coordination on shared hardware, not the throughput of a true multi-machine cluster.
 
-### 9.2 Configuration 1: Standalone (1 Core)
+### 9.2 Configuration 1: Standalone
 
 | Concurrency | Requests | Elapsed (s) | QPS |
 |-------------|----------|-------------|------|
-| 1.95 | 6,970 | 9.09 | 766.78 |
-| 2.93 | 17,162 | 9.93 | 1,728.30 |
-| 4.86 | 18,041 | 9.93 | 1,816.82 |
-| 6.74 | 36,905 | 9.93 | 3,716.52 |
-| **10.64** | **46,845** | 9.95 | **4,708.04** ← Peak |
-| 12.63 | 41,654 | 9.95 | 4,186.33 |
-| 16.61 | 39,735 | 9.94 | 3,997.48 |
-| 22.62 | 37,421 | 9.94 | 3,764.69 |
-| 40.58 | 38,513 | 9.94 | 3,874.55 |
-| 58.46 | 34,965 | 9.93 | 3,521.15 |
-| 77.94 | 32,410 | 9.93 | 3,263.85 |
+| 1.97 | 1,530 | 6.42 | 238.32 |
+| 2.92 | 3,401 | 6.92 | 491.47 |
+| 4.87 | 5,453 | 6.92 | 788.01 |
+| 6.84 | 7,364 | 6.91 | 1065.70 |
+| 10.71 | 9,410 | 6.92 | 1359.83 |
+| 12.70 | 10,382 | 6.92 | 1500.29 |
+| 16.64 | 11,231 | 6.92 | 1622.98 |
+| 18.63 | 11,100 | 6.90 | 1608.70 |
+| 22.57 | 12,191 | 6.92 | 1761.71 |
+| 28.53 | 13,233 | 6.89 | 1920.61 |
+| 77.82 | 13,550 | 6.93 | 1955.27 |
+| **81.53** | **13,689** | 6.89 | **1986.79** ← Peak |
 
 **Analysis**:
-- **Peak at 4,708 QPS** with only ~11 concurrent users
-- **Linear scaling zone**: 2 → 11 concurrency (QPS increases proportionally)
-- **Plateau zone**: 11 → 50 concurrency (QPS stabilizes ~3,800)
-- **Gradual degradation**: 50+ concurrency (QPS slowly declines to ~3,200)
-- **No failures** — 100% availability across all levels
+- **Peak ~1987 QPS** — by far the fastest. A single JVM owning the whole index avoids all inter-node coordination.
+- Scales smoothly with concurrency and keeps climbing into the high-concurrency range with 100% availability.
 
 ### 9.3 Configuration 2: 1-Node SolrCloud (2 Shards × 2 Replicas, 1 ZK)
 
 | Concurrency | Requests | Elapsed (s) | QPS |
 |-------------|----------|-------------|------|
-| 1.94 | 4,989 | 9.71 | 513.80 |
-| **2.90** | **13,308** | 9.96 | **1,336.14** ← Peak |
-| 0.76 | 2,586 | 9.96 | 259.64 |
+| 1.97 | 239 | 6.17 | 38.74 |
+| 2.96 | 694 | 6.76 | 102.66 |
+| 4.93 | 875 | 6.91 | 126.63 |
+| 6.89 | 1,241 | 6.70 | 185.22 |
+| 10.83 | 1,819 | 6.70 | 271.49 |
+| 12.76 | 1,740 | 6.84 | 254.39 |
+| 16.78 | 2,296 | 6.97 | 329.41 |
+| 18.69 | 2,156 | 6.72 | 320.83 |
+| 22.66 | 2,076 | 6.88 | 301.74 |
+| **28.61** | **2,641** | 6.88 | **383.87** ← Peak |
+| 75.94 | 1,926 | 6.94 | 277.52 |
+| 80.23 | 2,231 | 6.79 | 328.57 |
 
 **Analysis**:
-- **Peak QPS: 1,336** — 71.6% slower than standalone
-- **Collapsed at concurrency 3+** — system became unresponsive
-- ZooKeeper coordination + 4 cores competing on the same CPU caused severe contention
+- **Peak ~384 QPS** — ~81% slower than standalone. Even a single-node SolrCloud pays for ZooKeeper coordination and shard/replica routing.
 
 ### 9.4 Configuration 3: 3-Node SolrCloud (3 Shards × 4 Replicas, 1 ZK)
 
 | Concurrency | Requests | Elapsed (s) | QPS |
 |-------------|----------|-------------|------|
-| 1.97 | 3,371 | 9.43 | 357.48 |
-| 2.92 | 6,458 | 9.95 | 649.05 |
-| 4.83 | 20,543 | 9.95 | 2,064.62 |
-| **6.75** | **29,345** | 9.96 | **2,946.29** ← Peak |
-| 5.58 | 23,721 | 9.96 | 2,381.63 |
-| 0.58 | 1,468 | 9.96 | 147.39 |
+| 1.99 | 77 | 6.30 | 12.22 |
+| 2.97 | 316 | 6.89 | 45.86 |
+| 4.94 | 478 | 6.81 | 70.19 |
+| 6.91 | 642 | 6.59 | 97.42 |
+| 10.80 | 909 | 6.81 | 133.48 |
+| 12.81 | 889 | 6.81 | 130.54 |
+| 16.74 | 1,158 | 6.76 | 171.30 |
+| 18.77 | 1,926 | 6.85 | 281.17 |
+| 22.72 | 2,227 | 6.91 | 322.29 |
+| 28.59 | 2,634 | 6.93 | 380.09 |
+| 75.61 | 2,932 | 6.90 | 424.93 |
+| **80.27** | **2,877** | 6.71 | **428.76** ← Peak |
 
 **Analysis**:
-- **Peak QPS: 2,946** — better than Config 2, but still 37.4% slower than standalone
-- **Higher initial scaling gradient** than Config 1 (2→7 concurrency)
-- **Severe instability** — performance fluctuates wildly after peak
-- Multiple data points show near-zero QPS, indicating system-level failures
+- **Peak ~429 QPS** — ~78% slower than standalone. 3 shards × 4 replicas = 12 replicas across 3 JVMs on one host, so every distributed query fans out and competes for the same cores.
 
 ### 9.5 Configuration 4: 3-Node SolrCloud (3 Shards × 4 Replicas, 3 ZK)
 
 | Concurrency | Requests | Elapsed (s) | QPS |
 |-------------|----------|-------------|------|
-| 1.96 | 3,230 | 9.61 | 336.11 |
-| **2.94** | **7,597** | 9.95 | **763.52** |
-| 2.45 | 7,955 | 9.94 | **800.30** ← Peak |
-| 1.3 | 3,930 | 9.94 | 395.37 |
-| 2.03 | 6,682 | 9.94 | 672.23 |
-| 1.76 | 4,772 | 9.94 | 480.08 |
+| 1.98 | 147 | 6.33 | 23.22 |
+| 2.96 | 377 | 6.81 | 55.36 |
+| 4.93 | 501 | 6.87 | 72.93 |
+| 6.91 | 651 | 6.82 | 95.45 |
+| 10.86 | 898 | 6.78 | 132.45 |
+| 12.76 | 898 | 6.81 | 131.86 |
+| 16.78 | 1,227 | 6.85 | 179.12 |
+| 18.68 | 1,639 | 6.88 | 238.23 |
+| 22.61 | 2,004 | 6.81 | 294.27 |
+| 28.45 | 2,242 | 6.81 | 329.22 |
+| 76.30 | 2,306 | 6.90 | 334.20 |
+| **80.35** | **2,229** | 6.66 | **334.68** ← Peak |
 
 **Analysis**:
-- **Peak QPS: 800** — worst performing configuration
-- 3 ZooKeeper nodes on the same machine cause **quorum overhead** (ZAB protocol)
-- The ZK ensemble constantly syncs state across 3 processes, consuming CPU/memory
+- **Peak ~335 QPS** — the slowest. Running a 3-node ZooKeeper ensemble on the same host adds ZAB quorum-sync overhead on top of the distributed-search cost.
 
 ### 9.6 Cross-Configuration Comparison
 
 ```
 Peak QPS Comparison:
 
-Standalone    ████████████████████████████████████████████████  4,708 QPS
-3N/1ZK Cloud  ████████████████████████████████                  2,946 QPS
-1N/1ZK Cloud  ██████████████                                    1,336 QPS
-3N/3ZK Cloud  ████████                                            800 QPS
+Standalone    ████████████████████████████████████████████████  1,987 QPS
+3N/1ZK Cloud  ██████████  429 QPS
+1N/1ZK Cloud  █████████  384 QPS
+3N/3ZK Cloud  ████████  335 QPS
 ```
 
 ---
@@ -818,11 +830,11 @@ cd /home/$USER/dbms-term-project/solr-apache/scripts/zookeeper
 
 ### Performance Conclusions
 
-1. **Standalone Solr achieves remarkable single-node performance** — 4,708 QPS on commodity hardware demonstrates Lucene's efficiency as a search engine core.
+1. **Standalone Solr achieves the highest single-node throughput** — ~1,987 QPS on this 22-core host, roughly **4–6× faster** than any co-located SolrCloud configuration, demonstrating Lucene's efficiency when one JVM owns the whole index.
 
-2. **SolrCloud's value is in horizontal scaling and fault tolerance, not single-machine performance** — all distributed configurations showed lower peak QPS when co-located on one host.
+2. **SolrCloud's value is in horizontal scaling and fault tolerance, not single-machine performance** — every distributed configuration (peaks of ~334–429 QPS) was far slower than standalone when all nodes/replicas shared the same CPU.
 
-3. **ZooKeeper coordination overhead is non-trivial** — the ZAB consensus protocol for leader election, state synchronization, and configuration management adds measurable latency to every query path.
+3. **ZooKeeper coordination overhead is non-trivial** — the 3-ZK ensemble (peak ~335 QPS) was slower than the 1-ZK setups, since the ZAB consensus protocol for leader election and state synchronization competes for the same host resources.
 
 4. **Connection pooling and thread management are critical** — our C++ benchmark client demonstrates that proper connection reuse (via TCP keep-alive and CURL handle pooling) and thread synchronization (via mutex + condition variable) are essential for achieving high throughput.
 

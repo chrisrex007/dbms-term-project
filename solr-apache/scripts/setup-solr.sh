@@ -91,6 +91,17 @@ done
 # Keep zoo.cfg aligned with node-1 for tools that default to this filename.
 cp "$BASE_DIR/zookeeper/conf/zoo1.cfg" "$BASE_DIR/zookeeper/conf/zoo.cfg"
 
+# Also write a single-node (standalone) ZK config. A lone node from the 3-server
+# ensemble configs above can't form a quorum, so the "1 ZooKeeper" benchmark
+# configurations use this standalone config instead.
+cat > "$BASE_DIR/zookeeper/conf/zoo-standalone.cfg" << EOF
+tickTime=2000
+initLimit=10
+syncLimit=5
+dataDir=$BASE_DIR/zookeeper/data/zk1
+clientPort=$ZK_CLIENT_PORT_BASE
+EOF
+
 # Create Solr nodes
 for i in $(seq 1 "$NUM_SOLR_NODES"); do
     echo "Setting up Solr node $i..."
