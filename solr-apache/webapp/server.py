@@ -62,7 +62,12 @@ class SolrProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(error_msg)
 
     def log_message(self, format, *args):
-        if "/solr/" in (args[0] if args else ""):
+        # Only the request-log call passes the request line as a string in
+        # args[0]; error logs (log_error) pass an HTTPStatus/int instead, so
+        # guard the membership test to avoid "argument of type 'HTTPStatus'
+        # is not a container" TypeErrors that crash the request handler.
+        first = args[0] if args else ""
+        if isinstance(first, str) and "/solr/" in first:
             super().log_message(format, *args)
 
 if __name__ == "__main__":
