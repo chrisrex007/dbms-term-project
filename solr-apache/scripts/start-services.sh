@@ -10,6 +10,9 @@ source "$SCRIPT_DIR/env.sh"
 BASE_DIR="$SCRIPT_DIR"
 CONFIG_DIR="$BASE_DIR/solr-config/searchcore/conf"
 
+# Require a Solr-compatible JDK (env.sh resolves/exports JAVA_HOME).
+require_compatible_java || exit 1
+
 # Start ZooKeeper ensemble
 echo "Starting ZooKeeper ensemble..."
 for i in $(seq 1 "$NUM_ZK_NODES"); do

@@ -11,17 +11,8 @@ BASE_DIR="$SCRIPT_DIR"
 ZK_PEER_PORT_BASE="${ZK_PEER_PORT_BASE:-2888}"
 ZK_ELECTION_PORT_BASE="${ZK_ELECTION_PORT_BASE:-3888}"
 
-# Check for Java; derive JAVA_HOME only if it isn't already set.
-if ! command -v java &> /dev/null; then
-    echo "Java is not installed. Please install Java 11 or later."
-    exit 1
-fi
-if [ -z "${JAVA_HOME:-}" ]; then
-    JAVA_BIN=$(command -v java)
-    JAVA_HOME=$(dirname "$(dirname "$(readlink -f "$JAVA_BIN")")")
-    export JAVA_HOME
-fi
-echo "Using JAVA_HOME=$JAVA_HOME"
+# Require a Solr-compatible JDK (env.sh resolves/exports JAVA_HOME).
+require_compatible_java || exit 1
 
 # Create directories
 mkdir -p "$BASE_DIR/downloads"

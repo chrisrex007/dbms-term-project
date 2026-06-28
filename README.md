@@ -140,7 +140,7 @@ sudo apt-get install siege                                         # HTTP benchm
 pip install matplotlib numpy pandas                                # Visualization
 ```
 
-> **Java version:** use **Java 11 or 17**. Solr 9.3.0 relies on the Java SecurityManager, which was removed in Java 24, so it will **not** start on Java 24+ (the distro `default-jdk` may now pull Java 21/25). If you have multiple JDKs installed, point the scripts at the right one with `export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64` before running them (otherwise `setup-solr.sh` derives `JAVA_HOME` from whichever `java` is on your `PATH`).
+> **Java version:** use **Java 11–17**. Solr 9.3.0 relies on the Java SecurityManager, which was removed in Java 24, so it will **not** start on Java 24+ (the distro `default-jdk` may now pull Java 21/25). The scripts source `scripts/env.sh`, which **auto-detects a compatible JDK** (it searches `/usr/lib/jvm` and prefers Java 17) even when your default `java` is too new, and fails with a clear message if none is found. To force a specific one, `export JAVA_HOME=/path/to/jdk-17` before running.
 
 ### 5.2 Solr & ZooKeeper Setup (`setup-solr.sh`)
 
