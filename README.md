@@ -364,23 +364,11 @@ Results are **grouped by file_name** so all paragraphs from the same document ap
    - Concurrency (measured, not configured)
 4. **Outputs JSON** for downstream visualization
 
-**Query URL tested**:
+**Query URL tested** (override with `QUERY_ENDPOINT`; pick a term that actually
+matches the corpus — e.g. `q=system`, since the historical default `q=TCP` returns
+0 documents in the Simple-English-Wikipedia sample):
 ```bash
-http://localhost:8983/solr/searchcore/select?q=TCP
-```
-
-**Siege URL list** (`urls.txt`) for varied query testing:
-```bash
-http://localhost:8983/solr/searchcore/select?q=sample
-http://localhost:8983/solr/searchcore/select?q=document
-http://localhost:8983/solr/searchcore/select?q=test
-http://localhost:8983/solr/searchcore/select?q=example
-http://localhost:8983/solr/searchcore/select?q=author
-http://localhost:8983/solr/searchcore/select?q=category
-http://localhost:8983/solr/searchcore/select?q=tag
-http://localhost:8983/solr/searchcore/select?q=content
-http://localhost:8983/solr/searchcore/select?q=purpose
-http://localhost:8983/solr/searchcore/select?q=functionality
+http://localhost:8983/solr/searchcore/select?q=system
 ```
 
 ### 8.2 C++ Multithreaded HTTP Client
@@ -732,7 +720,6 @@ distributed-search-engine/
 │       ├── update_dashboard_from_run.py   ← Maps a raw run → data/*.json → sync
 │       ├── solr-config/
 │       │   ├── solr.xml                   ← SolrCloud config
-│       │   ├── zoo.cfg                    ← ZooKeeper config
 │       │   └── searchcore/
 │       │       ├── core.properties        ← Core registration
 │       │       └── conf/
@@ -742,7 +729,6 @@ distributed-search-engine/
 │       │           └── synonyms.txt       ← Synonym mappings
 │       └── benchmark/
 │           └── siege-config/
-│               ├── urls.txt               ← Siege query URL list
 │               └── siegerc                ← siege rc (enables JSON output)
 │
 │   └── webapp/
@@ -754,8 +740,7 @@ distributed-search-engine/
 │       ├── data/
 │       │   ├── configs.json               ← Canonical siege dataset (source of truth)
 │       │   └── cpp_data.json              ← Canonical C++ client dataset (source of truth)
-│       ├── images/                        ← Screenshots (charts are gitignored)
-│       └── notes.txt                      ← Raw benchmark data table
+│       └── images/                        ← Screenshots (charts are gitignored)
 ```
 
 ---

@@ -45,9 +45,6 @@ solr-apache/scripts/visualizations/
 # ========================
 # Generated benchmark charts (regenerable from configs.json / siege results)
 # ========================
-solr-apache/webapp/images/concurrency_vs_qps.png
-solr-apache/webapp/images/qps_over_time.png
-solr-apache/webapp/images/engine_comparison.png
 solr-apache/webapp/images/comparison_*_latest.png
 solr-apache/webapp/images/standalone_scaling_*_latest.png
 
