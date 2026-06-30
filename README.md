@@ -539,6 +539,23 @@ from the canonical `webapp/data/configs.json` and `webapp/data/cpp_data.json`. R
 after editing either data file; it rewrites only the spans between the DATA markers in
 `benchmark.html` and leaves the layout, styling, and copy untouched.
 
+#### `update_dashboard_from_run.py`
+Maps a **raw** benchmark run into the dashboard in one step. It reads a
+`benchmark_results/*.json` file (C++ client or siege sweep), auto-detects the tool,
+maps each row to the dashboard point schema, replaces only the `data` array of the
+target (`cpp_data.json`, or a named entry in `configs.json`), and then calls
+`sync_dashboard_data.py` to refresh `benchmark.html`:
+
+```bash
+python3 update_dashboard_from_run.py benchmark_results/cpp_results.json
+python3 update_dashboard_from_run.py benchmark_results/siege_results.json --config-name "Standalone"
+python3 update_dashboard_from_run.py benchmark_results/cpp_results.json --dry-run   # preview only
+```
+
+Options: `--tool {auto,siege,cpp}`, `--config-name` (siege target, default `Standalone`),
+`--dry-run`, `--no-sync`. It updates exactly one target per run and never mixes
+cross-engine numbers. (`sync_dashboard_data.py` is the second stage it depends on — keep both.)
+
 ---
 
 ## 9. Performance Results & Analysis
@@ -712,6 +729,7 @@ distributed-search-engine/
 │       ├── visualize.py                   ← Matplotlib chart generation
 │       ├── compare_configs.py             ← Multi-config charts (reads configs.json)
 │       ├── sync_dashboard_data.py         ← Syncs dashboard CONFIGS/CPP_RESULTS from data/*.json
+│       ├── update_dashboard_from_run.py   ← Maps a raw run → data/*.json → sync
 │       ├── solr-config/
 │       │   ├── solr.xml                   ← SolrCloud config
 │       │   ├── zoo.cfg                    ← ZooKeeper config
@@ -806,10 +824,17 @@ python3 compare_configs.py
 ```
 
 The dashboard's data comes from `webapp/data/configs.json` (siege) and
-`webapp/data/cpp_data.json` (C++ client). If you edit either file, run
+`webapp/data/cpp_data.json` (C++ client). Benchmark results are **not** auto-injected.
+To show a run on the dashboard, map it with `update_dashboard_from_run.py` (which
+rewrites the right data file and refreshes `benchmark.html`):
+
+```bash
+python3 update_dashboard_from_run.py benchmark_results/cpp_results.json     # C++ client
+python3 update_dashboard_from_run.py benchmark_results/siege_results.json   # siege → Standalone
+```
+
+If you instead hand-edit `configs.json` / `cpp_data.json`, run
 `python3 sync_dashboard_data.py` to regenerate the dashboard's inline data.
-Benchmark results are **not** auto-injected — map a raw run into those data
-files first (see §8.3), then sync.
 
 ### Step 8: View Benchmark Dashboard
 
