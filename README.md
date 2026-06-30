@@ -533,8 +533,11 @@ Generates multi-configuration comparison charts from the raw benchmark data:
 - Peak QPS bar comparison
 - Standalone scaling curve with annotated peak
 
-#### `add_to_website.py`
-Injects benchmark results into the web dashboard's HTML.
+#### `sync_dashboard_data.py`
+Regenerates the dashboard's inline `CONFIGS` (siege) and `CPP_RESULTS` (C++ client)
+from the canonical `webapp/data/configs.json` and `webapp/data/cpp_data.json`. Run it
+after editing either data file; it rewrites only the spans between the DATA markers in
+`benchmark.html` and leaves the layout, styling, and copy untouched.
 
 ---
 
@@ -708,8 +711,7 @@ distributed-search-engine/
 │       ├── finalize-benchmark.sh          ← Full benchmark + report
 │       ├── visualize.py                   ← Matplotlib chart generation
 │       ├── compare_configs.py             ← Multi-config charts (reads configs.json)
-│       ├── add_to_website.py              ← Injects results into benchmark.html
-│       ├── sync_dashboard_data.py         ← Syncs dashboard CONFIGS from configs.json
+│       ├── sync_dashboard_data.py         ← Syncs dashboard CONFIGS/CPP_RESULTS from data/*.json
 │       ├── solr-config/
 │       │   ├── solr.xml                   ← SolrCloud config
 │       │   ├── zoo.cfg                    ← ZooKeeper config
@@ -732,7 +734,8 @@ distributed-search-engine/
 │       ├── css/style.css                  ← Dark theme + glassmorphism
 │       ├── js/app.js                      ← Search, upload, suggestions
 │       ├── data/
-│       │   └── configs.json               ← Canonical benchmark dataset (source of truth)
+│       │   ├── configs.json               ← Canonical siege dataset (source of truth)
+│       │   └── cpp_data.json              ← Canonical C++ client dataset (source of truth)
 │       ├── images/                        ← Screenshots (charts are gitignored)
 │       └── notes.txt                      ← Raw benchmark data table
 ```
@@ -777,7 +780,7 @@ http://localhost:8983/solr/
 ### Step 5: Run Siege Benchmarks
 
 ```bash
-./scripts/run-siege-benchmark.sh
+QUERY_ENDPOINT="/select?q=system" ./run-siege-benchmark.sh
 ```
 
 ### Step 6: Build & Run C++ Benchmark Client
@@ -802,8 +805,11 @@ cd ../solr-apache/scripts
 python3 compare_configs.py
 ```
 
-The dashboard's data comes from `webapp/data/configs.json`. If you edit that file,
-run `python3 sync_dashboard_data.py` to regenerate the dashboard's inline data.
+The dashboard's data comes from `webapp/data/configs.json` (siege) and
+`webapp/data/cpp_data.json` (C++ client). If you edit either file, run
+`python3 sync_dashboard_data.py` to regenerate the dashboard's inline data.
+Benchmark results are **not** auto-injected — map a raw run into those data
+files first (see §8.3), then sync.
 
 ### Step 8: View Benchmark Dashboard
 
