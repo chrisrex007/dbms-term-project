@@ -87,7 +87,10 @@ def create_all_charts(output_dir):
     print(f"  Saved: comparison_peak_{timestamp}.png")
 
     # 3. Standalone detailed scaling curve
-    sa = CONFIGS["Standalone (1 core)"]
+    sa_name = next((n for n in CONFIGS if n.startswith("Standalone")), None)
+    if sa_name is None:
+        raise SystemExit("Error: no 'Standalone' configuration found in canonical dataset")
+    sa = CONFIGS[sa_name]
     concurrency = [d[0] for d in sa["data"]]
     qps = [d[3] for d in sa["data"]]
 
