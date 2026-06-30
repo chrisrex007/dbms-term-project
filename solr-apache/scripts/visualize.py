@@ -190,6 +190,5 @@ def main():
     data = load_benchmark_data(args.input_file)
     text_color = setup_theme(args.theme)
     create_visualizations(data, args.output_dir, args.format, text_color)
-    print("Run 'python3 add_to_website.py' to add results to benchmark.html")
 if __name__ == "__main__":
     main()

@@ -33,13 +33,13 @@ There is **no unit-test suite and no linter config** anywhere in this repo. "Tes
 cd solr-apache && python3 webapp/server.py 9090   # serves UI + proxies /solr/* to :8983
 ```
 
-**Visualization** (Python 3 + matplotlib/numpy/pandas): `visualize.py <results.json>`, `compare_configs.py`, `add_to_website.py`. These scripts assume an activated virtualenv (existing scripts source `~/solr-project/bin/activate`).
+**Visualization** (Python 3 + matplotlib/numpy/pandas): `visualize.py <results.json>` and `compare_configs.py`. These scripts assume an activated virtualenv (existing scripts source `~/solr-project/bin/activate`).
 
 ## Architecture & the data-flow contract
 
 Request path at runtime: **browser → `webapp/server.py` (port 9090) → Solr (8983) → ZooKeeper ensemble (2181–2183)**.
 
-Benchmark path: **siege scripts _or_ the C++ client → Solr**, each emitting the **same siege-compatible JSON schema** → `visualize.py` / `compare_configs.py` produce PNGs + `webapp/data/*.json` → `add_to_website.py` injects results into `webapp/benchmark.html`.
+Benchmark path: **siege scripts _or_ the C++ client → Solr**, each emitting the **same siege-compatible JSON schema** → `visualize.py` / `compare_configs.py` produce PNGs under `scripts/visualizations/`. The `benchmark.html` dashboard is fed separately from the canonical `webapp/data/configs.json` + `cpp_data.json` via `sync_dashboard_data.py`.
 
 That shared JSON result schema (`concurrent_users`, `transactions`, `transaction_rate`, `availability`, `concurrency`, plus the C++ client's extra `p50/p95/p99_latency_ms`) is the **integration contract** between three producers and three consumers. If you add or rename a metric, update **both** the producers (`run-siege-benchmark.sh`, `benchmark/src/benchmark_runner.cpp`) **and** the consumers (`visualize.py`, `compare_configs.py`, `webapp/`). Keeping the C++ output siege-compatible is intentional so one `visualize.py` handles both tools.
 
@@ -50,7 +50,7 @@ C++ client internals: `main.cpp` (CLI parsing) → `BenchmarkRunner` (orchestrat
 - **Scripts source `solr-apache/scripts/env.sh`** for shared, env-overridable defaults (`COLLECTION`, `SOLR_URL`, `NUM_SOLR_NODES`, `NUM_ZK_NODES`, ports, `SHARDS`, `REPLICATION_FACTOR`, `SIEGERC`). All shell scripts resolve their own location via `SCRIPT_DIR`, so they can be run from anywhere.
 - **Benchmark data is canonical in `webapp/data/configs.json`.** Both `compare_configs.py` and the `benchmark.html` dashboard read from it; run `scripts/sync_dashboard_data.py` after editing it to regenerate the dashboard's inline `CONFIGS` (between the `CONFIGS_DATA` markers). Never hand-edit the dashboard data or reintroduce fabricated cross-engine numbers.
 - **siege must emit JSON for the parser.** `run-siege-benchmark.sh` invokes `siege -R scripts/benchmark/siege-config/siegerc` (sets `json_output = true`); it fails loudly rather than writing zero rows if metrics can't be parsed.
-- **Runtime dirs live under `solr-apache/scripts/`** and are gitignored: `downloads/`, `solr-nodes/`, `zookeeper/`, `benchmark_results/`, `visualizations/`. Generated charts under `webapp/images/` (`*_latest.png`, `concurrency_vs_qps.png`, `qps_over_time.png`) are also gitignored; the `.jpeg` screenshots are tracked. Solr config templates live in `solr-apache/scripts/solr-config/` (schema/handlers under `solr-config/searchcore/conf/`).
+- **Runtime dirs live under `solr-apache/scripts/`** and are gitignored: `downloads/`, `solr-nodes/`, `zookeeper/`, `benchmark_results/`, `visualizations/`. Generated charts under `webapp/images/` (`*_latest.png`) are also gitignored; the `.jpeg` screenshots are tracked. Solr config templates live in `solr-apache/scripts/solr-config/` (schema/handlers under `solr-config/searchcore/conf/`).
 - **The collection is always `searchcore`**; canonical query URL `http://localhost:8983/solr/searchcore/select`. `start-services.sh` creates it with `-d solr-config/searchcore/conf` so the repo's configset (schema + solrconfig) is uploaded to ZooKeeper — schema changes require recreating/reloading the collection.
 - **Webapp talks to Solr via relative `/solr/searchcore` URLs** (`webapp/js/app.js`) and depends on `server.py` proxying `/solr/*` to dodge CORS — there is no other backend. `server.py` binds `127.0.0.1` by default (override with `BIND_HOST`). A `file://` open of `index.html` cannot reach Solr.
 - **Siege concurrency levels are prime numbers** (2,3,5,7,11,13,17,19,23,29,…) on purpose, to avoid synchronization/aliasing artifacts. Preserve this when editing benchmark scripts.

@@ -134,7 +134,4 @@ cd "$SCRIPT_DIR"
 echo "Running visualization script..."
 python3 visualize.py "$OUTPUT_FILE"
 
-echo "Running add_to_website script..."
-python3 add_to_website.py "$OUTPUT_FILE"
-
 echo "All tasks completed successfully."
